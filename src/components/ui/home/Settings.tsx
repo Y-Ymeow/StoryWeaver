@@ -151,6 +151,97 @@ export const Settings: FunctionalComponent<SettingsProps> = ({ onClose }) => {
     return models.map(m => m.id)
   }
 
+  // 导出 AI 模型配置
+  const handleExportProviders = () => {
+    if (providers.length === 0) {
+      setMessage({ type: 'error', text: '没有可导出的配置' })
+      return
+    }
+    
+    const exportData = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      providers: providers
+    }
+    
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `ai-providers-${new Date().toISOString().slice(0, 10)}.json`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    
+    setMessage({ type: 'success', text: `已导出 ${providers.length} 个 Provider 配置` })
+  }
+
+  // 导入 AI 模型配置
+  const handleImportProviders = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.json'
+    
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (!file) return
+      
+      try {
+        const text = await file.text()
+        const data = JSON.parse(text)
+        
+        // 验证格式
+        if (!data.providers || !Array.isArray(data.providers)) {
+          throw new Error('无效的配置文件格式')
+        }
+        
+        // 合并或替换
+        const existingIds = new Set(providers.map(p => p.id))
+        const newProviders: ProviderConfig[] = []
+        
+        for (const p of data.providers) {
+          if (!p.id || !p.name || !p.type) {
+            console.warn('跳过无效配置:', p)
+            continue
+          }
+          
+          if (existingIds.has(p.id)) {
+            // 已存在，询问是否覆盖
+            const existing = providers.find(ep => ep.id === p.id)
+            if (existing && confirm(`Provider "${p.name}" 已存在，是否覆盖？`)) {
+              // 更新现有配置
+              const updated = providers.map(ep => ep.id === p.id ? p : ep)
+              saveProviders(updated)
+              setProviders(updated)
+            }
+          } else {
+            // 新配置
+            newProviders.push(p)
+          }
+        }
+        
+        // 添加新配置
+        if (newProviders.length > 0) {
+          const updated = [...providers, ...newProviders]
+          saveProviders(updated)
+          setProviders(updated)
+        }
+        
+        const active = loadProviders().find(p => p.is_active)
+        if (active) {
+          setActiveProviderId(active.id)
+        }
+        
+        setMessage({ type: 'success', text: `成功导入配置` })
+      } catch (err) {
+        setMessage({ type: 'error', text: err instanceof Error ? err.message : '导入失败' })
+      }
+    }
+    
+    input.click()
+  }
+
   return (
     <>
       <Modal
@@ -169,6 +260,41 @@ export const Settings: FunctionalComponent<SettingsProps> = ({ onClose }) => {
               {message.text}
             </div>
           )}
+
+          <Card hover={false}>
+            <h3 class="text-lg font-semibold text-white mb-2">🤖 AI 模型设置</h3>
+            <div class="text-gray-300 space-y-2">
+              <p class="text-sm">
+                已添加 {providers.length} 个 Provider
+                {activeProviderId && (
+                  <span class="text-green-400 ml-2">
+                    (当前使用：{providers.find(p => p.id === activeProviderId)?.name})
+                  </span>
+                )}
+              </p>
+              <div class="flex flex-wrap gap-2">
+                <Button
+                  onClick={() => setShowAIModelSettings(true)}
+                  variant="secondary"
+                >
+                  ⚙️ 管理
+                </Button>
+                <Button
+                  onClick={handleExportProviders}
+                  variant="secondary"
+                  disabled={providers.length === 0}
+                >
+                  📤 导出配置
+                </Button>
+                <Button
+                  onClick={handleImportProviders}
+                  variant="secondary"
+                >
+                  📥 导入配置
+                </Button>
+              </div>
+            </div>
+          </Card>
 
           <Card hover={false}>
             <h3 class="text-lg font-semibold text-white mb-2">📁 数据库设置</h3>
@@ -212,27 +338,6 @@ export const Settings: FunctionalComponent<SettingsProps> = ({ onClose }) => {
                   </Button>
                 )}
               </div>
-            </div>
-          </Card>
-
-          <Card hover={false}>
-            <h3 class="text-lg font-semibold text-white mb-2">🤖 AI 模型设置</h3>
-            <div class="text-gray-300 space-y-2">
-              <p class="text-sm">
-                已添加 {providers.length} 个 Provider
-                {activeProviderId && (
-                  <span class="text-green-400 ml-2">
-                    (当前使用：{providers.find(p => p.id === activeProviderId)?.name})
-                  </span>
-                )}
-              </p>
-              <Button
-                onClick={() => setShowAIModelSettings(true)}
-                variant="secondary"
-                class="w-full sm:w-auto"
-              >
-                ⚙️ 管理 AI 模型
-              </Button>
             </div>
           </Card>
 
