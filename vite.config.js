@@ -3,8 +3,10 @@ import preact from "@preact/preset-vite";
 import { VitePWA } from "vite-plugin-pwa";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
+// GitHub Pages 仓库名，本地开发时设为 '/'
+var base = process.env.GITHUB_PAGES ? "/StoryWeaver/" : "/";
 export default defineConfig({
-    base: "/",
+    base: base,
     plugins: [
         preact(),
         tailwindcss(),
@@ -19,8 +21,8 @@ export default defineConfig({
                 background_color: "#1a1a2e",
                 display: "standalone",
                 orientation: "portrait",
-                scope: "/",
-                start_url: "/",
+                scope: base,
+                start_url: base,
                 icons: [
                     {
                         src: "pwa-192x192.png",
