@@ -29,6 +29,15 @@ async function loadSqlJs() {
 }
 
 /**
+ * 获取 wasm 文件的正确路径
+ */
+function getWasmPath(): string {
+  // 获取当前页面的 base URL（处理 GitHub Pages 子路径）
+  const base = import.meta.env.BASE_URL || '/'
+  return `${base}sql-wasm.wasm`
+}
+
+/**
  * 初始化数据库
  */
 export interface InitDBOptions {
@@ -53,8 +62,11 @@ export async function initDB(options?: InitDBOptions): Promise<Database> {
 
   try {
     const initSqlJs = await loadSqlJs()
+    const wasmPath = getWasmPath()
+    console.log('Loading SQL.js WASM from:', wasmPath)
+    
     const SQL = await initSqlJs({
-      locateFile: (_file: string) => '/sql-wasm.wasm'
+      locateFile: (_file: string) => wasmPath
     })
 
     let db: SqlJsDatabase
