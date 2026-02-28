@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0ea5e9;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#e94560;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- 背景 -->
+  <rect width="100" height="100" rx="20" fill="#1a1a2e"/>
+  
+  <!-- 剧本图标 - 展开的书卷 -->
+  <g transform="translate(50, 50)">
+    <!-- 左页 -->
+    <path d="M -25 -15 L -25 20 Q -25 25 -20 25 L 0 20 L 0 -20 L -20 -20 Q -25 -20 -25 -15" 
+          fill="url(#gradient)" opacity="0.9"/>
+    
+    <!-- 右页 -->
+    <path d="M 25 -15 L 25 20 Q 25 25 20 25 L 0 20 L 0 -20 L 20 -20 Q 25 -20 25 -15" 
+          fill="url(#gradient)" opacity="0.7"/>
+    
+    <!-- 中间的线 -->
+    <line x1="0" y1="-20" x2="0" y2="25" stroke="#0ea5e9" stroke-width="1.5"/>
+    
+    <!-- 装饰 - 星星/火花 -->
+    <circle cx="-15" cy="-8" r="2" fill="#e94560"/>
+    <circle cx="15" cy="-5" r="1.5" fill="#0ea5e9"/>
+    <circle cx="-10" cy="10" r="1.5" fill="#0ea5e9"/>
+    <circle cx="12" cy="12" r="2" fill="#e94560"/>
+  </g>
+</svg>

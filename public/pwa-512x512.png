@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="grad512" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0ea5e9;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#e94560;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- 背景 -->
+  <rect width="512" height="512" rx="96" fill="#1a1a2e"/>
+  
+  <!-- 剧本图标 -->
+  <g transform="translate(256, 256)">
+    <!-- 左页 -->
+    <path d="M -128 -80 L -128 106 Q -128 133 -101 133 L 0 106 L 0 -106 L -101 -106 Q -128 -106 -128 -80" 
+          fill="url(#grad512)" opacity="0.9"/>
+    
+    <!-- 右页 -->
+    <path d="M 128 -80 L 128 106 Q 128 133 101 133 L 0 106 L 0 -106 L 101 -106 Q 128 -106 128 -80" 
+          fill="url(#grad512)" opacity="0.7"/>
+    
+    <!-- 中间的线 -->
+    <line x1="0" y1="-106" x2="0" y2="133" stroke="#0ea5e9" stroke-width="8"/>
+    
+    <!-- 装饰 - 星星/火花 -->
+    <circle cx="-75" cy="-48" r="10" fill="#e94560"/>
+    <circle cx="75" cy="-32" r="8" fill="#0ea5e9"/>
+    <circle cx="-53" cy="53" r="8" fill="#0ea5e9"/>
+    <circle cx="64" cy="64" r="10" fill="#e94560"/>
+    <circle cx="-80" cy="27" r="5" fill="#0ea5e9"/>
+    <circle cx="80" cy="13" r="5" fill="#e94560"/>
+    <circle cx="-40" cy="-70" r="6" fill="#0ea5e9"/>
+    <circle cx="45" cy="-60" r="7" fill="#e94560"/>
+  </g>
+</svg>

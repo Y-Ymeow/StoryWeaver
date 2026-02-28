@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180">
+  <defs>
+    <linearGradient id="gradApple" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0ea5e9;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#e94560;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- 白色背景 (Apple 要求) -->
+  <rect width="180" height="180" fill="#ffffff"/>
+  
+  <!-- 剧本图标 -->
+  <g transform="translate(90, 90)">
+    <!-- 左页 -->
+    <path d="M -45 -28 L -45 37 Q -45 42 -40 42 L 0 37 L 0 -37 L -40 -37 Q -45 -37 -45 -28" 
+          fill="url(#gradApple)"/>
+    
+    <!-- 右页 -->
+    <path d="M 45 -28 L 45 37 Q 45 42 40 42 L 0 37 L 0 -37 L 40 -37 Q 45 -37 45 -28" 
+          fill="url(#gradApple)" opacity="0.8"/>
+    
+    <!-- 中间的线 -->
+    <line x1="0" y1="-37" x2="0" y2="42" stroke="#1a1a2e" stroke-width="2"/>
+    
+    <!-- 装饰 -->
+    <circle cx="-26" cy="-16" r="4" fill="#e94560"/>
+    <circle cx="26" cy="-10" r="3" fill="#0ea5e9"/>
+    <circle cx="-18" cy="18" r="3" fill="#0ea5e9"/>
+    <circle cx="22" cy="22" r="4" fill="#e94560"/>
+  </g>
+</svg>
