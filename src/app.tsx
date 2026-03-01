@@ -29,7 +29,7 @@ if (typeof window !== "undefined") {
     logError(
       `${message} (${filename}:${lineno}:${colno})`,
       error,
-      "window.error"
+      "window.error",
     );
     console.error("[全局错误] JavaScript 错误:", message, error);
   });
@@ -48,7 +48,6 @@ function HashRouter() {
   useEffect(() => {
     const handleHashChange = () => {
       const newUrl = getUrlFromHash();
-      console.log("Hash changed to:", newUrl);
       setUrl(newUrl);
     };
 
@@ -161,4 +160,3 @@ export function App() {
     </ErrorBoundary>
   );
 }
-

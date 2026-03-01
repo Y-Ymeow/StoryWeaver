@@ -3,7 +3,7 @@
  */
 
 import { FunctionalComponent } from "preact";
-import { useState, useEffect } from "preact/hooks";
+import { useState, useEffect, useMemo } from "preact/hooks";
 import { Button, ModelButton } from "@components/ui/common";
 import { UserPerformanceInput } from "@components/ui/room/UserPerformanceInput";
 import { PerformanceList } from "./PerformanceList";
@@ -62,11 +62,11 @@ export const ScenePerformanceModal: FunctionalComponent<
   const [currentActor, setCurrentActor] = useState("");
   const [generatedSummary, setGeneratedSummary] = useState("");
   const [roundPlan, setRoundPlan] = useState<any[]>([]);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       loadProvidersData();
-      loadPerformances();
       if (scene.round_plan) {
         try {
           const plan =
@@ -77,9 +77,17 @@ export const ScenePerformanceModal: FunctionalComponent<
         } catch (e) {
           console.error("解析轮次计划失败:", e);
         }
+      } else {
+        loadPerformances();
       }
     }
   }, [isOpen, scene.id]);
+
+  useEffect(() => {
+    if (isOpen && roundPlan.length > 0) {
+      loadPerformances();
+    }
+  }, [isOpen, roundPlan.length]);
 
   const loadProvidersData = () => {
     const data = localStorage.getItem("ai-providers");
@@ -104,6 +112,7 @@ export const ScenePerformanceModal: FunctionalComponent<
     if (perfs.length === 0) {
       setStatus("idle");
       setCurrentRound(1);
+      setIsLoaded(true);
       return;
     }
 
@@ -121,12 +130,23 @@ export const ScenePerformanceModal: FunctionalComponent<
       setStatus("performing");
       setCurrentRound(maxRound);
     }
+    setIsLoaded(true);
   };
 
-  // 获取当前待表演的演员
-  const getCurrentPerformer = () => {
+  const totalRounds = scene.max_rounds || 5;
+
+  // 获取当前待表演的演员 - 使用 useMemo 确保数据变化时重新计算
+  const currentPerformer = useMemo(() => {
+    if (!isLoaded) return null;
     return getNextPerformer(currentRound, roundPlan, performances, characters);
-  };
+  }, [isLoaded, currentRound, roundPlan, performances, characters]);
+
+  const isUserTurn = currentPerformer?.isUser ?? false;
+  const isAiTurn = currentPerformer && !currentPerformer.isUser;
+
+  // 检查是否所有轮次都已完成（没有待表演的演员）
+  const isAllRoundsComplete =
+    !currentPerformer && currentRound >= totalRounds && isLoaded;
 
   // 开始/继续演出
   const handleStart = async () => {
@@ -140,7 +160,7 @@ export const ScenePerformanceModal: FunctionalComponent<
 
   // 处理下一个演员
   const processNext = async () => {
-    const nextPerformer = getCurrentPerformer();
+    const nextPerformer = currentPerformer;
 
     if (!nextPerformer) {
       // 本轮结束，检查是否完成所有轮次
@@ -308,7 +328,7 @@ export const ScenePerformanceModal: FunctionalComponent<
 
   // 用户提交输入
   const handleUserInput = async () => {
-    const performer = getCurrentPerformer();
+    const performer = currentPerformer;
     if (!performer || !performer.isUser) return;
 
     const character = findCharacterByName(performer.characterName, characters);
@@ -421,15 +441,10 @@ export const ScenePerformanceModal: FunctionalComponent<
     onClose();
   };
 
-  const totalRounds = scene.max_rounds || 5;
   const progress =
-    totalRounds > 0 ? Math.round((currentRound / totalRounds) * 100) : 0;
-  const currentPerformer = getCurrentPerformer();
-  const isUserTurn = currentPerformer?.isUser;
-  const isAiTurn = currentPerformer && !currentPerformer.isUser;
-  
-  // 检查是否所有轮次都已完成（没有待表演的演员）
-  const isAllRoundsComplete = !currentPerformer && currentRound >= totalRounds;
+    totalRounds > 0 && isLoaded
+      ? Math.round((currentRound / totalRounds) * 100)
+      : 0;
 
   const currentRoundPlan = roundPlan.find((r) => r.round === currentRound);
   const currentRoundGoal = currentRoundPlan?.description || scene.goal;
@@ -755,4 +770,3 @@ export const ScenePerformanceModal: FunctionalComponent<
     </div>
   );
 };
-
