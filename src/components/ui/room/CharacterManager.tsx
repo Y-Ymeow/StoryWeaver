@@ -206,31 +206,44 @@ export const CharacterManager: FunctionalComponent<CharacterManagerProps> = ({
           resetForm();
           setIsAdding(false);
         }}
-        title="👥 角色管理"
+        header={
+          <div class="flex justify-between items-center w-full">
+            <h3 class="text-lg font-semibold text-white">
+              👥 角色管理 ({characters.length})
+            </h3>
+            <div class="flex gap-2">
+              <Button
+                onClick={() => setIsAIInputOpen(true)}
+                variant="secondary"
+                size="sm"
+              >
+                🤖 AI 生成
+              </Button>
+              <Button onClick={handleAdd} size="sm">
+                + 添加角色
+              </Button>
+            </div>
+          </div>
+        }
+        footer={
+          isAdding && editingChar ? (
+            <div class="flex justify-end gap-3 pt-4 border-t border-dark-accent">
+              <Button onClick={cancelAdd} variant="secondary">
+                取消
+              </Button>
+              <Button onClick={handleSubmit} disabled={!name.trim()}>
+                {editingChar ? "保存修改" : "添加角色"}
+              </Button>
+            </div>
+          ) : null
+        }
+        title=""
         size="xl"
       >
-        <div class="space-y-4 max-h-[70vh] overflow-y-auto">
+        <div class="space-y-4">
           {/* 角色列表 */}
           {!isAdding && !editingChar && (
             <>
-              <div class="flex justify-between items-center">
-                <h3 class="text-lg font-semibold text-white">
-                  已有角色 ({characters.length})
-                </h3>
-                <div class="flex gap-2">
-                  <Button
-                    onClick={() => setIsAIInputOpen(true)}
-                    variant="secondary"
-                    size="sm"
-                  >
-                    🤖 AI 生成
-                  </Button>
-                  <Button onClick={handleAdd} size="sm">
-                    + 添加角色
-                  </Button>
-                </div>
-              </div>
-
               {characters.length === 0 ? (
                 <div class="text-center py-8 text-gray-400">
                   <p>暂无角色</p>
@@ -365,15 +378,6 @@ export const CharacterManager: FunctionalComponent<CharacterManagerProps> = ({
                   placeholder="如：古风、现代、幽默、严肃"
                 />
               </div>
-
-              <div class="flex justify-end gap-3 pt-4 border-t border-dark-accent">
-                <Button onClick={cancelAdd} variant="secondary">
-                  取消
-                </Button>
-                <Button onClick={handleSubmit} disabled={!name.trim()}>
-                  {editingChar ? "保存修改" : "添加角色"}
-                </Button>
-              </div>
             </div>
           )}
         </div>
@@ -401,8 +405,25 @@ export const CharacterManager: FunctionalComponent<CharacterManagerProps> = ({
         onClose={() => setViewingMemory(null)}
         title={`🧠 ${viewingMemory?.name}的记忆`}
         size="lg"
+        footer={
+          <div class="flex justify-end gap-3">
+            <Button
+              onClick={handleGenerateMemory}
+              variant="secondary"
+              isLoading={isUpdatingMemory}
+            >
+              ✨ AI 生成
+            </Button>
+            <Button onClick={() => setViewingMemory(null)} variant="secondary">
+              取消
+            </Button>
+            <Button onClick={handleUpdateMemory} isLoading={isUpdatingMemory}>
+              保存记忆
+            </Button>
+          </div>
+        }
       >
-        <div class="space-y-4 max-h-[70vh] overflow-y-auto">
+        <div class="space-y-4">
           <div>
             <label class="block text-sm font-medium text-gray-300 mb-2">
               记忆内容
@@ -422,22 +443,6 @@ export const CharacterManager: FunctionalComponent<CharacterManagerProps> = ({
               💡 提示：记忆会帮助 AI
               角色记住之前的剧情发展和对话内容，保持角色的一致性。
             </p>
-          </div>
-
-          <div class="flex justify-end gap-3 pt-4 border-t border-dark-accent">
-            <Button
-              onClick={handleGenerateMemory}
-              variant="secondary"
-              isLoading={isUpdatingMemory}
-            >
-              ✨ AI 生成
-            </Button>
-            <Button onClick={() => setViewingMemory(null)} variant="secondary">
-              取消
-            </Button>
-            <Button onClick={handleUpdateMemory} isLoading={isUpdatingMemory}>
-              保存记忆
-            </Button>
           </div>
         </div>
       </Modal>

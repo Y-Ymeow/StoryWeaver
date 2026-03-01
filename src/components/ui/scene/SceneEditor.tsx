@@ -89,6 +89,10 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
     null,
   );
 
+  // 关键词控制（用于 AI 生成轮次计划）
+  const [keywords, setKeywords] = useState<string[]>([]);
+  const [showKeywordsInput, setShowKeywordsInput] = useState(false);
+
   // 已选场景摘要作为上下文
   const [selectedSceneSummaries, setSelectedSceneSummaries] = useState<
     string[]
@@ -299,7 +303,7 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
         description,
         goal,
         maxRounds,
-      });
+      }, keywords.length > 0 ? keywords : undefined);
 
       const messages = [
         { role: "system", content: getRoundPlanSystemPrompt() },
@@ -698,8 +702,18 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
         onClose={() => setIsRoundPlanOpen(false)}
         title="📋 安排轮次"
         size="xl"
+        footer={
+          <div class="flex justify-end gap-3">
+            <Button
+              onClick={() => setIsRoundPlanOpen(false)}
+              variant="secondary"
+            >
+              完成
+            </Button>
+          </div>
+        }
       >
-        <div class="space-y-4 max-h-[70vh] overflow-y-auto">
+        <div class="space-y-4 ">
           <div class="bg-dark-accent/30 p-3 rounded-lg">
             <p class="text-sm text-gray-300">设置出场角色并生成轮次计划。</p>
           </div>
@@ -782,6 +796,66 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
                 size="sm"
               />
             </div>
+            
+            {/* 关键词控制 */}
+            <div class="mb-3">
+              <div class="flex items-center gap-2 mb-2">
+                <Button
+                  onClick={() => setShowKeywordsInput(!showKeywordsInput)}
+                  size="sm"
+                  variant={keywords.length > 0 ? "primary" : "secondary"}
+                >
+                  🏷️ 关键词控制 {keywords.length > 0 ? `(${keywords.length})` : ""}
+                </Button>
+                {keywords.length > 0 && (
+                  <Button
+                    onClick={() => setKeywords([])}
+                    size="sm"
+                    variant="ghost"
+                  >
+                    清空
+                  </Button>
+                )}
+              </div>
+              
+              {showKeywordsInput && (
+                <div class="space-y-2">
+                  <p class="text-xs text-gray-400">
+                    为每场戏设置关键词，AI 会根据关键词生成剧情。留空则让 AI 自由发挥。
+                  </p>
+                  <div class="space-y-2">
+                    {Array.from({ length: maxRounds }).map((_, i) => (
+                      <div key={i} class="flex items-center gap-2">
+                        <span class="text-xs text-gray-500 w-16">第{i + 1}场</span>
+                        <input
+                          type="text"
+                          value={keywords[i] || ""}
+                          onInput={(e) => {
+                            const newKeywords = [...keywords];
+                            newKeywords[i] = (e.target as HTMLInputElement).value;
+                            setKeywords(newKeywords);
+                          }}
+                          placeholder={`第${i + 1}场关键词（如：初次相遇、建立信任）`}
+                          class="flex-1 bg-dark-surface border border-dark-accent rounded px-3 py-1.5 text-sm text-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                        {keywords[i] && (
+                          <button
+                            onClick={() => {
+                              const newKeywords = keywords.filter((_, idx) => idx !== i);
+                              setKeywords(newKeywords);
+                            }}
+                            class="text-gray-400 hover:text-red-400"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            
             <div class="flex items-center gap-2">
               <Button
                 onClick={handleGenerateRoundPlan}
@@ -920,15 +994,6 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
                 </Card>
               ))
             )}
-          </div>
-
-          <div class="flex justify-end gap-3 pt-4 border-t border-dark-accent">
-            <Button
-              onClick={() => setIsRoundPlanOpen(false)}
-              variant="secondary"
-            >
-              完成
-            </Button>
           </div>
         </div>
       </Modal>

@@ -104,7 +104,10 @@ export const CreateRoomWizard: FunctionalComponent<CreateRoomWizardProps> = ({
         is_user: c.is_user,
         type: c.is_user ? "user" : ("ai" as "user" | "ai"),
       }));
-      setCharacters(newChars.length > 0 ? newChars : characters);
+      // 追加而不是覆盖
+      if (newChars.length > 0) {
+        setCharacters([...characters, ...newChars]);
+      }
     } else if (aiGenerateMode === "scene" && result.scenes) {
       const newScenes = result.scenes.map((s) => ({
         name: s.name,
@@ -113,7 +116,10 @@ export const CreateRoomWizard: FunctionalComponent<CreateRoomWizardProps> = ({
         setup: s.setup,
         max_rounds: s.max_rounds || 10,
       }));
-      setScenes(newScenes.length > 0 ? newScenes : scenes);
+      // 追加而不是覆盖
+      if (newScenes.length > 0) {
+        setScenes([...scenes, ...newScenes]);
+      }
     }
   };
 
@@ -200,8 +206,35 @@ export const CreateRoomWizard: FunctionalComponent<CreateRoomWizardProps> = ({
       onClose={onClose}
       title={editingMode ? "✏️ 编辑房间" : "🎭 创建新房间"}
       size="xl"
+      footer={
+        <div class="flex justify-between items-center">
+          {step > 1 ? (
+            <Button onClick={() => setStep(step - 1)} variant="secondary">
+              ← 上一步
+            </Button>
+          ) : (
+            <Button onClick={onClose} variant="ghost">
+              取消
+            </Button>
+          )}
+
+          {step < 3 ? (
+            <Button onClick={() => setStep(step + 1)} disabled={!canGoNext()}>
+              下一步 →
+            </Button>
+          ) : (
+            <Button
+              onClick={handleSubmit}
+              isLoading={isLoading}
+              disabled={!canGoNext()}
+            >
+              创建房间
+            </Button>
+          )}
+        </div>
+      }
     >
-      <div class="max-h-[70vh] overflow-y-auto">
+      <div class="space-y-4">
         {/* 步骤指示器 */}
         <div class="flex items-center justify-center mb-6">
           <div class="flex items-center gap-2">
@@ -515,33 +548,6 @@ export const CreateRoomWizard: FunctionalComponent<CreateRoomWizardProps> = ({
             ))}
           </div>
         )}
-
-        {/* 底部按钮 */}
-        <div class="flex justify-between items-center mt-6 pt-4 border-t border-dark-accent">
-          {step > 1 ? (
-            <Button onClick={() => setStep(step - 1)} variant="secondary">
-              ← 上一步
-            </Button>
-          ) : (
-            <Button onClick={onClose} variant="ghost">
-              取消
-            </Button>
-          )}
-
-          {step < 3 ? (
-            <Button onClick={() => setStep(step + 1)} disabled={!canGoNext()}>
-              下一步 →
-            </Button>
-          ) : (
-            <Button
-              onClick={handleSubmit}
-              isLoading={isLoading}
-              disabled={!canGoNext()}
-            >
-              创建房间
-            </Button>
-          )}
-        </div>
       </div>
 
       {/* AI 生成模态框 */}

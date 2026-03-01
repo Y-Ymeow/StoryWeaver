@@ -29,7 +29,8 @@ export const ModelSelector: FunctionalComponent<ModelSelectorProps> = ({
   // 初始化时加载 Provider 的默认模型
   useEffect(() => {
     if (selectedProvider && !selectedModel) {
-      const model = selectedProvider.custom_models?.[0] || selectedProvider.model;
+      const model =
+        selectedProvider.custom_models?.[0] || selectedProvider.model;
       if (model) setSelectedModel(model);
     }
   }, [selectedProviderId]);
@@ -39,7 +40,10 @@ export const ModelSelector: FunctionalComponent<ModelSelectorProps> = ({
     if (selectedProvider) {
       setIsThinkingModel(selectedProvider.supports_thinking || false);
       setEnableThinking(
-        selectedProvider.supports_thinking && selectedProvider.thinking_param_key ? true : false,
+        selectedProvider.supports_thinking &&
+          selectedProvider.thinking_param_key
+          ? true
+          : false,
       );
     }
   }, [selectedProviderId]);
@@ -58,13 +62,8 @@ export const ModelSelector: FunctionalComponent<ModelSelectorProps> = ({
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="⚙️ 选择模型"
-      size="lg"
-    >
-      <div class="space-y-4 max-h-[70vh] overflow-y-auto">
+    <Modal isOpen={isOpen} onClose={onClose} title="⚙️ 选择模型" size="lg">
+      <div class="space-y-4">
         {/* Provider 选择 */}
         <div>
           <label class="block text-sm font-medium text-gray-300 mb-2">
@@ -102,26 +101,29 @@ export const ModelSelector: FunctionalComponent<ModelSelectorProps> = ({
             </label>
             <Input
               value={selectedModel}
-              onInput={(e) => setSelectedModel((e.target as HTMLInputElement).value)}
+              onInput={(e) =>
+                setSelectedModel((e.target as HTMLInputElement).value)
+              }
               placeholder="输入模型名称"
             />
-            {selectedProvider?.custom_models && selectedProvider.custom_models.length > 0 && (
-              <div class="flex flex-wrap gap-2 mt-2">
-                {selectedProvider.custom_models.map((model) => (
-                  <button
-                    key={model}
-                    onClick={() => setSelectedModel(model)}
-                    class={`px-3 py-1 rounded text-xs ${
-                      selectedModel === model
-                        ? "bg-primary-600 text-white"
-                        : "bg-dark-accent text-gray-300 hover:bg-dark-surface"
-                    }`}
-                  >
-                    {model}
-                  </button>
-                ))}
-              </div>
-            )}
+            {selectedProvider?.custom_models &&
+              selectedProvider.custom_models.length > 0 && (
+                <div class="flex flex-wrap gap-2 mt-2">
+                  {selectedProvider.custom_models.map((model) => (
+                    <button
+                      key={model}
+                      onClick={() => setSelectedModel(model)}
+                      class={`px-3 py-1 rounded text-xs ${
+                        selectedModel === model
+                          ? "bg-primary-600 text-white"
+                          : "bg-dark-accent text-gray-300 hover:bg-dark-surface"
+                      }`}
+                    >
+                      {model}
+                    </button>
+                  ))}
+                </div>
+              )}
           </div>
         )}
 
@@ -133,10 +135,15 @@ export const ModelSelector: FunctionalComponent<ModelSelectorProps> = ({
                 type="checkbox"
                 id="is-thinking-model"
                 checked={isThinkingModel}
-                onChange={(e) => setIsThinkingModel((e.target as HTMLInputElement).checked)}
+                onChange={(e) =>
+                  setIsThinkingModel((e.target as HTMLInputElement).checked)
+                }
                 class="w-4 h-4 rounded"
               />
-              <label htmlFor="is-thinking-model" class="text-sm font-medium text-gray-300">
+              <label
+                htmlFor="is-thinking-model"
+                class="text-sm font-medium text-gray-300"
+              >
                 🧠 这是思考模型（需要显式控制思考）
               </label>
             </div>
@@ -148,10 +155,15 @@ export const ModelSelector: FunctionalComponent<ModelSelectorProps> = ({
                     type="checkbox"
                     id="enable-thinking"
                     checked={enableThinking}
-                    onChange={(e) => setEnableThinking((e.target as HTMLInputElement).checked)}
+                    onChange={(e) =>
+                      setEnableThinking((e.target as HTMLInputElement).checked)
+                    }
                     class="w-4 h-4 rounded"
                   />
-                  <label htmlFor="enable-thinking" class="text-sm font-medium text-gray-300">
+                  <label
+                    htmlFor="enable-thinking"
+                    class="text-sm font-medium text-gray-300"
+                  >
                     启用思考模式
                     {enableThinking && (
                       <span class="text-xs text-gray-400 ml-1">
@@ -169,7 +181,12 @@ export const ModelSelector: FunctionalComponent<ModelSelectorProps> = ({
                     <Input
                       type="number"
                       value={String(thinkingBudget)}
-                      onInput={(e) => setThinkingBudget(parseInt((e.target as HTMLInputElement).value) || 1024)}
+                      onInput={(e) =>
+                        setThinkingBudget(
+                          parseInt((e.target as HTMLInputElement).value) ||
+                            1024,
+                        )
+                      }
                       placeholder="1024"
                       class="w-32"
                     />

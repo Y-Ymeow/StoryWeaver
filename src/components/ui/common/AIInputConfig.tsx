@@ -1,6 +1,13 @@
 import { FunctionalComponent } from "preact";
 import { useState, useEffect, useRef } from "preact/hooks";
-import { Button, Modal, Input, TextArea, Card, ModelButton } from "@components/ui/common";
+import {
+  Button,
+  Modal,
+  Input,
+  TextArea,
+  Card,
+  ModelButton,
+} from "@components/ui/common";
 import type { ProviderConfig } from "@stores/types";
 import { createClient } from "@/lib/openai/client";
 
@@ -24,7 +31,11 @@ interface AIInputConfigProps {
     plot_summary?: string;
     worldview?: string;
   };
-  characters?: Array<{ name: string; background: string; dialogue_style: string }>;
+  characters?: Array<{
+    name: string;
+    background: string;
+    dialogue_style: string;
+  }>;
   scenes?: Array<{ name: string; description: string; goal: string }>;
 }
 
@@ -90,7 +101,12 @@ export const AIInputConfig: FunctionalComponent<AIInputConfigProps> = ({
 
     try {
       const client = createClient(selectedProvider);
-      const systemPrompt = getSystemPrompt(mode, roomContext, characters, scenes);
+      const systemPrompt = getSystemPrompt(
+        mode,
+        roomContext,
+        characters,
+        scenes,
+      );
       const messages = [
         { role: "system", content: systemPrompt },
         { role: "user", content: buildPrompt(prompt, keywords) },
@@ -158,12 +174,63 @@ export const AIInputConfig: FunctionalComponent<AIInputConfigProps> = ({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="🤖 AI 输入配置" size="xl">
-      <div class="max-h-[80vh] overflow-y-auto space-y-4">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="🤖 AI 输入配置"
+      size="xl"
+      footer={
+        <div class="flex justify-end gap-3">
+          <Button onClick={onClose} variant="secondary">
+            取消
+          </Button>
+          <Button
+            onClick={handleGenerate}
+            isLoading={isGenerating || isStreaming}
+            disabled={!selectedProvider || !prompt.trim()}
+          >
+            {isGenerating || isStreaming ? (
+              <span class="flex items-center gap-2">
+                <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                  <circle
+                    class="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    stroke-width="4"
+                    fill="none"
+                  />
+                  <path
+                    class="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  />
+                </svg>
+                生成中...
+              </span>
+            ) : (
+              "✨ 生成"
+            )}
+          </Button>
+          {result && (
+            <Button onClick={handleConfirm} variant="primary">
+              确认使用
+            </Button>
+          )}
+        </div>
+      }
+    >
+      <div class="space-y-4">
         {/* 模型选择 */}
         <div class="flex items-center justify-between">
           <span class="text-sm text-gray-400">
-            当前模型：<span class="text-white">{providers.find(p => p.id === selectedProviderId)?.name || "未选择"} - {selectedModel || "未选择"}</span>
+            当前模型：
+            <span class="text-white">
+              {providers.find((p) => p.id === selectedProviderId)?.name ||
+                "未选择"}{" "}
+              - {selectedModel || "未选择"}
+            </span>
           </span>
           <ModelButton
             providers={providers}
@@ -189,9 +256,7 @@ export const AIInputConfig: FunctionalComponent<AIInputConfigProps> = ({
           </label>
           <TextArea
             value={prompt}
-            onInput={(e) =>
-              setPrompt((e.target as HTMLTextAreaElement).value)
-            }
+            onInput={(e) => setPrompt((e.target as HTMLTextAreaElement).value)}
             placeholder="请输入你想要 AI 生成的内容..."
             rows={4}
           />
@@ -203,30 +268,35 @@ export const AIInputConfig: FunctionalComponent<AIInputConfigProps> = ({
           </label>
           <Input
             value={keywords}
-            onInput={(e) =>
-              setKeywords((e.target as HTMLInputElement).value)
-            }
+            onInput={(e) => setKeywords((e.target as HTMLInputElement).value)}
             placeholder="如：古风，悬疑，复仇"
           />
         </div>
 
         {/* 流式生成中的思考内容 */}
-        {(thinkingContent || isStreaming) && isThinkingModel && enableThinking && (
-          <Card hover={false} class="p-4 bg-purple-900/20 border-purple-500/30">
-            <div class="flex items-center gap-2 mb-2">
-              <span class="text-lg">🧠</span>
-              <label class="block text-sm font-medium text-purple-300">
-                思考中...
-              </label>
-              {isStreaming && (
-                <span class="text-xs text-purple-400 animate-pulse">● 实时显示</span>
-              )}
-            </div>
-            <div class="text-sm text-purple-200/80 whitespace-pre-wrap max-h-40 overflow-y-auto font-mono text-xs">
-              {thinkingContent || "正在思考..."}
-            </div>
-          </Card>
-        )}
+        {(thinkingContent || isStreaming) &&
+          isThinkingModel &&
+          enableThinking && (
+            <Card
+              hover={false}
+              class="p-4 bg-purple-900/20 border-purple-500/30"
+            >
+              <div class="flex items-center gap-2 mb-2">
+                <span class="text-lg">🧠</span>
+                <label class="block text-sm font-medium text-purple-300">
+                  思考中...
+                </label>
+                {isStreaming && (
+                  <span class="text-xs text-purple-400 animate-pulse">
+                    ● 实时显示
+                  </span>
+                )}
+              </div>
+              <div class="text-purple-200/80 whitespace-pre-wrap max-h-40 overflow-y-auto font-mono text-xs">
+                {thinkingContent || "正在思考..."}
+              </div>
+            </Card>
+          )}
 
         {/* 生成结果 */}
         {(streamingContent || result) && (
@@ -238,7 +308,9 @@ export const AIInputConfig: FunctionalComponent<AIInputConfigProps> = ({
                   生成结果
                 </label>
                 {isStreaming && (
-                  <span class="text-xs text-primary-400 animate-pulse">● 生成中...</span>
+                  <span class="text-xs text-primary-400 animate-pulse">
+                    ● 生成中...
+                  </span>
                 )}
               </div>
               <Button
@@ -265,34 +337,6 @@ export const AIInputConfig: FunctionalComponent<AIInputConfigProps> = ({
             {error}
           </div>
         )}
-
-        <div class="flex justify-end gap-3 pt-4 border-t border-dark-accent">
-          <Button onClick={onClose} variant="secondary">
-            取消
-          </Button>
-          <Button
-            onClick={handleGenerate}
-            isLoading={isGenerating || isStreaming}
-            disabled={!selectedProvider || !prompt.trim()}
-          >
-            {isGenerating || isStreaming ? (
-              <span class="flex items-center gap-2">
-                <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none" />
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
-                生成中...
-              </span>
-            ) : (
-              "✨ 生成"
-            )}
-          </Button>
-          {result && (
-            <Button onClick={handleConfirm} variant="primary">
-              确认使用
-            </Button>
-          )}
-        </div>
       </div>
     </Modal>
   );
@@ -308,7 +352,7 @@ function getSystemPrompt(
   mode: string,
   roomContext?: any,
   characters?: any[],
-  scenes?: any[]
+  scenes?: any[],
 ): string {
   const contextInfo = roomContext
     ? `

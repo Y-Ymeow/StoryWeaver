@@ -69,6 +69,12 @@ ${userPrompt}
 export function getRoundPlanSystemPrompt(): string {
   return `你是专业的戏剧导演。请为互动剧本设计演出计划，考虑戏剧节奏和角色平衡。
 
+⚠️ 重要原则：
+1. 每场戏必须围绕【场景目标】展开，不能偏离
+2. 剧情要有起承转合，逐步推进到场景目标
+3. 第一场戏通常是铺垫/引入，最后一场戏是高潮/收尾
+4. 每场戏的描述要具体说明该场的剧情发展和目标
+
 请返回严格的 JSON 格式：
 {
   "rounds": [
@@ -90,14 +96,28 @@ export function getRoundPlanSystemPrompt(): string {
 
 /**
  * 构建轮次计划 Prompt
+ * @param keywords 可选的关键词数组，用于指导每轮的剧情方向
  */
 export function buildRoundPlanPrompt(
   room: Room,
   characters: Character[],
-  scene: { name: string; description: string; goal: string; maxRounds: number }
+  scene: { name: string; description: string; goal: string; maxRounds: number },
+  keywords?: string[]
 ): string {
   const userChars = characters.filter((c) => c.is_user);
   const aiChars = characters.filter((c) => !c.is_user);
+
+  // 构建关键词提示
+  let keywordsHint = "";
+  if (keywords && keywords.length > 0) {
+    keywordsHint = `
+【关键词指引】
+用户提供了以下关键词，请在对应的轮次中体现这些剧情元素：
+${keywords.map((k, i) => `- 第${i + 1}场：${k}`).join("\n")}
+
+注意：关键词是剧情方向的提示，请将其融入到每场戏的描述中。
+`;
+  }
 
   return `
 【剧本信息】
@@ -109,9 +129,9 @@ export function buildRoundPlanPrompt(
 【当前场景】
 - 名称：${scene.name}
 - 描述：${scene.description}
-- 目标：${scene.goal || "推进剧情"}
+- 目标：**${scene.goal || "推进剧情"}**
 - 总场次：${scene.maxRounds} 场
-
+${keywordsHint}
 【出场角色】（只使用这些角色，不要让其他角色出场）
 - 用户扮演：${userChars.map(c => c.name).join(', ') || "无"}
 - AI 角色：${aiChars.map((c) => `${c.name} (${c.background || "无背景"})`).join(', ')}
@@ -119,17 +139,21 @@ export function buildRoundPlanPrompt(
 请为这个场景设计${scene.maxRounds}场演出计划。
 
 ⚠️ 重要规则：
-1. 每场戏只使用【出场角色】列表中的人物，不要添加其他角色
-2. 合理安排用户角色和 AI 角色的出场顺序，让剧情有起承转合
-3. 不是每个角色都要在每场戏中出现，根据剧情需要安排
-4. 每场戏的描述要简洁明了，说明剧情发展
+1. **必须围绕场景目标**：每场戏都要服务于场景目标，不能偏离
+2. **只使用出场角色**：不要添加【出场角色】列表之外的人物
+3. **合理安排顺序**：用户角色和 AI 角色的出场顺序要符合对话逻辑
+4. **剧情递进**：
+   - 第 1 场：铺垫/引入，建立情境
+   - 中间场：发展/冲突，逐步推进
+   - 最后一场：高潮/收尾，达成场景目标
+5. **描述具体**：每场戏的描述要说明具体的剧情发展和该场的小目标
 
 返回 JSON 格式：
 {
   "rounds": [
     {
       "round": 1,
-      "description": "第一场戏的剧情描述",
+      "description": "第一场戏的剧情描述（要体现该场的剧情发展和小目标）",
       "performances": [
         {
           "characterId": "角色 ID",

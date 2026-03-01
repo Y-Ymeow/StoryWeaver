@@ -1,6 +1,6 @@
 /**
  * 房间级摘要生成器组件
- * 
+ *
  * 基于所有场景的演出记录生成房间级别的全局摘要
  */
 
@@ -26,19 +26,18 @@ interface SceneSummaryData {
   performances: Performance[];
 }
 
-export const RoomSummaryGenerator: FunctionalComponent<RoomSummaryGeneratorProps> = ({
-  isOpen,
-  onClose,
-  room,
-  onSummaryGenerated,
-}) => {
+export const RoomSummaryGenerator: FunctionalComponent<
+  RoomSummaryGeneratorProps
+> = ({ isOpen, onClose, room, onSummaryGenerated }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [sceneSummaries, setSceneSummaries] = useState<SceneSummaryData[]>([]);
   const [generatedSummary, setGeneratedSummary] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [providers, setProviders] = useState<any[]>([]);
-  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
+  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(
+    null,
+  );
   const [selectedModel, setSelectedModel] = useState("");
 
   // 加载 Provider 和场景数据
@@ -100,7 +99,8 @@ export const RoomSummaryGenerator: FunctionalComponent<RoomSummaryGeneratorProps
       const provider = providers.find((p) => p.id === selectedProviderId);
       if (!provider) throw new Error("Provider 不存在");
 
-      const model = selectedModel || provider.custom_models?.[0] || provider.model;
+      const model =
+        selectedModel || provider.custom_models?.[0] || provider.model;
       if (!model) throw new Error("未选择模型");
 
       const client = createClient(provider);
@@ -109,7 +109,8 @@ export const RoomSummaryGenerator: FunctionalComponent<RoomSummaryGeneratorProps
       const scenesInfo = sceneSummaries
         .map((s, i) => {
           const perfCount = s.performances.length;
-          const maxRound = perfCount > 0 ? Math.max(...s.performances.map(p => p.round)) : 0;
+          const maxRound =
+            perfCount > 0 ? Math.max(...s.performances.map((p) => p.round)) : 0;
           return `${i + 1}. ${s.scene.name} - ${s.summary || `已完成${perfCount}条演出记录，共${maxRound}轮`}`;
         })
         .join("\n");
@@ -126,7 +127,7 @@ export const RoomSummaryGenerator: FunctionalComponent<RoomSummaryGeneratorProps
 【场景进展】
 ${scenesInfo}
 
-【已完成场景数】${sceneSummaries.filter(s => s.performances.length > 0).length} / ${sceneSummaries.length}
+【已完成场景数】${sceneSummaries.filter((s) => s.performances.length > 0).length} / ${sceneSummaries.length}
 
 请生成一段简洁的摘要（200 字以内），包括：
 1. 当前整体剧情进展
@@ -137,7 +138,10 @@ ${scenesInfo}
 返回纯文本，不要有 JSON 格式。`;
 
       const messages = [
-        { role: "system", content: "你是专业的剧本编辑助手，擅长总结剧情进展。" },
+        {
+          role: "system",
+          content: "你是专业的剧本编辑助手，擅长总结剧情进展。",
+        },
         { role: "user", content: prompt },
       ];
 
@@ -174,8 +178,13 @@ ${scenesInfo}
 
   // 统计信息
   const totalScenes = sceneSummaries.length;
-  const completedScenes = sceneSummaries.filter((s) => s.performances.length > 0).length;
-  const totalPerformances = sceneSummaries.reduce((sum, s) => sum + s.performances.length, 0);
+  const completedScenes = sceneSummaries.filter(
+    (s) => s.performances.length > 0,
+  ).length;
+  const totalPerformances = sceneSummaries.reduce(
+    (sum, s) => sum + s.performances.length,
+    0,
+  );
 
   return (
     <Modal
@@ -183,22 +192,47 @@ ${scenesInfo}
       onClose={onClose}
       title="📊 生成房间摘要"
       size="xl"
+      footer={
+        <div class="flex justify-end gap-3 ">
+          <Button onClick={onClose} variant="secondary">
+            取消
+          </Button>
+          <Button
+            onClick={handleGenerateSummary}
+            isLoading={isGenerating || isLoading}
+            disabled={!selectedProviderId || sceneSummaries.length === 0}
+          >
+            {isGenerating ? "生成中..." : "✨ 生成摘要"}
+          </Button>
+          {generatedSummary && (
+            <Button onClick={handleSave} variant="primary">
+              保存
+            </Button>
+          )}
+        </div>
+      }
     >
-      <div class="max-h-[80vh] overflow-y-auto space-y-4">
+      <div class="space-y-4">
         {/* 统计信息 */}
         <Card class="p-4 bg-dark-accent/30">
           <h3 class="text-lg font-semibold text-white mb-3">📈 演出统计</h3>
           <div class="grid grid-cols-3 gap-4 text-center">
             <div>
-              <div class="text-2xl font-bold text-primary-400">{totalScenes}</div>
+              <div class="text-2xl font-bold text-primary-400">
+                {totalScenes}
+              </div>
               <div class="text-xs text-gray-400">总场景数</div>
             </div>
             <div>
-              <div class="text-2xl font-bold text-green-400">{completedScenes}</div>
+              <div class="text-2xl font-bold text-green-400">
+                {completedScenes}
+              </div>
               <div class="text-xs text-gray-400">已完成</div>
             </div>
             <div>
-              <div class="text-2xl font-bold text-purple-400">{totalPerformances}</div>
+              <div class="text-2xl font-bold text-purple-400">
+                {totalPerformances}
+              </div>
               <div class="text-xs text-gray-400">演出记录</div>
             </div>
           </div>
@@ -219,9 +253,14 @@ ${scenesInfo}
               <Card key={s.scene.id} class="p-3">
                 <div class="flex items-start justify-between">
                   <div class="flex-1">
-                    <div class="font-medium text-white text-sm">{s.scene.name}</div>
+                    <div class="font-medium text-white text-sm">
+                      {s.scene.name}
+                    </div>
                     <div class="text-xs text-gray-400 mt-1">
-                      {s.summary || (s.performances.length > 0 ? `已完成 ${s.performances.length} 条记录` : "未进行演出")}
+                      {s.summary ||
+                        (s.performances.length > 0
+                          ? `已完成 ${s.performances.length} 条记录`
+                          : "未进行演出")}
                     </div>
                   </div>
                   <div class="text-xs text-gray-500">
@@ -244,7 +283,7 @@ ${scenesInfo}
               onChange={(e) => {
                 const providerId = (e.target as HTMLSelectElement).value;
                 setSelectedProviderId(providerId);
-                const provider = providers.find(p => p.id === providerId);
+                const provider = providers.find((p) => p.id === providerId);
                 if (provider) {
                   const model = provider.custom_models?.[0] || provider.model;
                   if (model) setSelectedModel(model);
@@ -281,7 +320,9 @@ ${scenesInfo}
             </div>
             <TextArea
               value={generatedSummary}
-              onInput={(e) => setGeneratedSummary((e.target as HTMLTextAreaElement).value)}
+              onInput={(e) =>
+                setGeneratedSummary((e.target as HTMLTextAreaElement).value)
+              }
               rows={6}
               class="w-full resize-none"
             />
@@ -293,25 +334,6 @@ ${scenesInfo}
             {error}
           </div>
         )}
-
-        {/* 操作按钮 */}
-        <div class="flex justify-end gap-3 pt-4 border-t border-dark-accent">
-          <Button onClick={onClose} variant="secondary">
-            取消
-          </Button>
-          <Button
-            onClick={handleGenerateSummary}
-            isLoading={isGenerating || isLoading}
-            disabled={!selectedProviderId || sceneSummaries.length === 0}
-          >
-            {isGenerating ? "生成中..." : "✨ 生成摘要"}
-          </Button>
-          {generatedSummary && (
-            <Button onClick={handleSave} variant="primary">
-              保存
-            </Button>
-          )}
-        </div>
       </div>
     </Modal>
   );

@@ -14,7 +14,10 @@ interface RoomExportImportProps {
   isOpen: boolean;
   onClose: () => void;
   room?: Room;
-  onImported?: (result: { roomId: string; stats: { scenes: number; characters: number; performances: number } }) => void;
+  onImported?: (result: {
+    roomId: string;
+    stats: { scenes: number; characters: number; performances: number };
+  }) => void;
 }
 
 export const RoomExportImport: FunctionalComponent<RoomExportImportProps> = ({
@@ -34,7 +37,7 @@ export const RoomExportImport: FunctionalComponent<RoomExportImportProps> = ({
 
   const handleExport = async () => {
     if (!room) return;
-    
+
     setIsProcessing(true);
     try {
       await exportRoomToFile(room);
@@ -47,11 +50,11 @@ export const RoomExportImport: FunctionalComponent<RoomExportImportProps> = ({
 
   const handleImportFromJson = async () => {
     if (!importJson.trim()) return;
-    
+
     setIsProcessing(true);
     setError(null);
     setImportResult(null);
-    
+
     try {
       const result = await importRoomFromJSON(importJson);
       setImportResult(result);
@@ -66,17 +69,17 @@ export const RoomExportImport: FunctionalComponent<RoomExportImportProps> = ({
   const handleFileImport = async () => {
     setIsProcessing(true);
     setError(null);
-    
+
     try {
       // 创建 input 元素
       const input = document.createElement("input");
       input.type = "file";
       input.accept = ".json,application/json";
-      
+
       input.onchange = async (e) => {
         const file = (e.target as HTMLInputElement).files?.[0];
         if (!file) return;
-        
+
         const reader = new FileReader();
         reader.onload = async (event) => {
           try {
@@ -92,7 +95,7 @@ export const RoomExportImport: FunctionalComponent<RoomExportImportProps> = ({
         };
         reader.readAsText(file);
       };
-      
+
       input.click();
     } catch (err) {
       setError(err instanceof Error ? err.message : "导入失败");
@@ -101,13 +104,8 @@ export const RoomExportImport: FunctionalComponent<RoomExportImportProps> = ({
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="📦 导出/导入房间"
-      size="lg"
-    >
-      <div class="max-h-[80vh] overflow-y-auto space-y-4">
+    <Modal isOpen={isOpen} onClose={onClose} title="📦 导出/导入房间" size="lg">
+      <div class="space-y-4">
         {/* 标签页 */}
         <div class="flex border-b border-dark-accent">
           <button
@@ -229,7 +227,9 @@ export const RoomExportImport: FunctionalComponent<RoomExportImportProps> = ({
               </p>
               <TextArea
                 value={importJson}
-                onInput={(e) => setImportJson((e.target as HTMLTextAreaElement).value)}
+                onInput={(e) =>
+                  setImportJson((e.target as HTMLTextAreaElement).value)
+                }
                 placeholder="在此粘贴 JSON 内容..."
                 rows={6}
                 class="w-full resize-none font-mono text-xs"

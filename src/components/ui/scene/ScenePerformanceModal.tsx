@@ -12,13 +12,18 @@ import {
   getPerformancesBySceneId,
   createPerformance,
   deletePerformance,
+  deletePerformancesBySceneId,
 } from "@/db/models/performances";
 import { updateScene } from "@/db/models/scenes";
 import { createClient } from "@/lib/openai/client";
 import { generateSceneSummary } from "@/lib/memory";
 import { buildSceneRoundPrompt } from "@/lib";
 import { parseMultiplePerformances } from "@/lib/parser";
-import { getNextPerformer, isRoundComplete, findCharacterByName } from "@/lib/rules/performance";
+import {
+  getNextPerformer,
+  isRoundComplete,
+  findCharacterByName,
+} from "@/lib/rules/performance";
 
 interface ScenePerformanceModalProps {
   isOpen: boolean;
@@ -29,24 +34,28 @@ interface ScenePerformanceModalProps {
   onPerformancesChange: () => void;
 }
 
-export const ScenePerformanceModal: FunctionalComponent<ScenePerformanceModalProps> = ({
-  isOpen,
-  onClose,
-  scene,
-  room,
-  characters,
-  onPerformancesChange,
-}) => {
+export const ScenePerformanceModal: FunctionalComponent<
+  ScenePerformanceModalProps
+> = ({ isOpen, onClose, scene, room, characters, onPerformancesChange }) => {
   const [performances, setPerformances] = useState<Performance[]>([]);
   const [providers, setProviders] = useState<any[]>([]);
-  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
+  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(
+    null,
+  );
   const [selectedModel, setSelectedModel] = useState("");
   const [isThinkingModel, setIsThinkingModel] = useState(false);
   const [enableThinking, setEnableThinking] = useState(false);
   const [thinkingBudget, setThinkingBudget] = useState(1024);
-  const [status, setStatus] = useState<"idle" | "performing" | "completed">("idle");
+  const [status, setStatus] = useState<"idle" | "performing" | "completed">(
+    "idle",
+  );
   const [currentRound, setCurrentRound] = useState(1);
-  const [userInputs, setUserInputs] = useState<Record<string, { dialogue: string; action: string; thought: string; emotion: string }>>({});
+  const [userInputs, setUserInputs] = useState<
+    Record<
+      string,
+      { dialogue: string; action: string; thought: string; emotion: string }
+    >
+  >({});
   const [isProcessing, setIsProcessing] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
   const [thinkingContent, setThinkingContent] = useState("");
@@ -60,7 +69,10 @@ export const ScenePerformanceModal: FunctionalComponent<ScenePerformanceModalPro
       loadPerformances();
       if (scene.round_plan) {
         try {
-          const plan = typeof scene.round_plan === "string" ? JSON.parse(scene.round_plan) : scene.round_plan;
+          const plan =
+            typeof scene.round_plan === "string"
+              ? JSON.parse(scene.round_plan)
+              : scene.round_plan;
           setRoundPlan(plan);
         } catch (e) {
           console.error("解析轮次计划失败:", e);
@@ -79,14 +91,16 @@ export const ScenePerformanceModal: FunctionalComponent<ScenePerformanceModalPro
       const model = active.custom_models?.[0] || active.model;
       if (model) setSelectedModel(model);
       setIsThinkingModel(active.supports_thinking || false);
-      setEnableThinking(active.supports_thinking && active.thinking_param_key ? true : false);
+      setEnableThinking(
+        active.supports_thinking && active.thinking_param_key ? true : false,
+      );
     }
   };
 
   const loadPerformances = async () => {
     const perfs = await getPerformancesBySceneId(scene.id);
     setPerformances(perfs);
-    
+
     if (perfs.length === 0) {
       setStatus("idle");
       setCurrentRound(1);
@@ -95,7 +109,7 @@ export const ScenePerformanceModal: FunctionalComponent<ScenePerformanceModalPro
 
     const maxRound = Math.max(...perfs.map((p) => p.round));
     const complete = isRoundComplete(maxRound, roundPlan, perfs, characters);
-    
+
     if (complete) {
       if (maxRound >= (scene.max_rounds || 5)) {
         setStatus("completed");
@@ -132,7 +146,8 @@ export const ScenePerformanceModal: FunctionalComponent<ScenePerformanceModalPro
       // 本轮结束，检查是否完成所有轮次
       const maxRounds = scene.max_rounds || 5;
       if (currentRound >= maxRounds) {
-        setStatus("completed");
+        // 最后一轮完成，保持 performing 状态，等待用户手动点击"结束演出"
+        return;
       } else {
         // 进入下一轮，但不自动开始
         setCurrentRound(currentRound + 1);
@@ -149,6 +164,11 @@ export const ScenePerformanceModal: FunctionalComponent<ScenePerformanceModalPro
     await performAI(nextPerformer);
   };
 
+  // 手动结束演出
+  const handleEndPerformance = () => {
+    setStatus("completed");
+  };
+
   // AI 表演
   const performAI = async (performer: any) => {
     setIsProcessing(true);
@@ -159,13 +179,18 @@ export const ScenePerformanceModal: FunctionalComponent<ScenePerformanceModalPro
       try {
         const provider = providers.find((p) => p.id === selectedProviderId);
         if (!provider) throw new Error("Provider 不存在");
-        
-        const model = selectedModel || provider.custom_models?.[0] || provider.model;
+
+        const model =
+          selectedModel || provider.custom_models?.[0] || provider.model;
         if (!model) throw new Error("未选择模型");
 
         const client = createClient(provider);
-        const character = findCharacterByName(performer.characterName, characters);
-        if (!character) throw new Error(`找不到角色: ${performer.characterName}`);
+        const character = findCharacterByName(
+          performer.characterName,
+          characters,
+        );
+        if (!character)
+          throw new Error(`找不到角色: ${performer.characterName}`);
 
         setCurrentActor(character.name);
         setStreamingContent("");
@@ -185,30 +210,59 @@ export const ScenePerformanceModal: FunctionalComponent<ScenePerformanceModalPro
         }
 
         // 获取当前轮次目标
-        const currentRoundPlanItem = roundPlan.find((r) => r.round === currentRound);
+        const currentRoundPlanItem = roundPlan.find(
+          (r) => r.round === currentRound,
+        );
         const roundGoal = currentRoundPlanItem?.description;
 
-        const prompt = buildSceneRoundPrompt(room, scene, character, characters, performances, currentRound, roundGoal);
+        const prompt = buildSceneRoundPrompt(
+          room,
+          scene,
+          character,
+          characters,
+          performances,
+          currentRound,
+          roundGoal,
+        );
         const messages = [
-          { role: "system", content: "你是专业演员。根据角色设定和剧情生成符合角色性格的表演内容。" },
-          { role: "user", content: prompt }
+          {
+            role: "system",
+            content:
+              "你是专业演员。根据角色设定和剧情生成符合角色性格的表演内容。",
+          },
+          { role: "user", content: prompt },
         ];
 
-        const stream = client.chatStream(messages, { temperature: 0.7, max_tokens: 2048, model, thinking });
+        const stream = client.chatStream(messages, {
+          temperature: 0.7,
+          max_tokens: 2048,
+          model,
+          thinking,
+        });
         let fullContent = "";
         let inThinking = false;
 
         for await (const chunk of stream) {
-          if (chunk.includes("<tool_call>") || chunk.includes("起")) { inThinking = true; continue; }
-          if (chunk.includes("ৗ") || chunk.includes("终")) { inThinking = false; continue; }
-          if (inThinking) { setThinkingContent((prev) => prev + chunk); } 
-          else { fullContent += chunk; setStreamingContent(fullContent); }
+          if (chunk.includes("<tool_call>") || chunk.includes("起")) {
+            inThinking = true;
+            continue;
+          }
+          if (chunk.includes("ৗ") || chunk.includes("终")) {
+            inThinking = false;
+            continue;
+          }
+          if (inThinking) {
+            setThinkingContent((prev) => prev + chunk);
+          } else {
+            fullContent += chunk;
+            setStreamingContent(fullContent);
+          }
         }
 
         // 解析并保存
         const parsedList = parseMultiplePerformances(fullContent);
         let currentOrder = performances.length;
-        
+
         for (const parsed of parsedList) {
           const contentObj: Record<string, string> = {};
           if (parsed.dialogue) contentObj.dialogue = parsed.dialogue;
@@ -223,7 +277,7 @@ export const ScenePerformanceModal: FunctionalComponent<ScenePerformanceModalPro
             content: contentObj,
             primary_type: (Object.keys(contentObj)[0] as any) || "dialogue",
             round: currentRound,
-            order: currentOrder++
+            order: currentOrder++,
           });
         }
 
@@ -233,10 +287,10 @@ export const ScenePerformanceModal: FunctionalComponent<ScenePerformanceModalPro
         await loadPerformances();
         setIsProcessing(false);
         return;
-
       } catch (error: any) {
         retryCount++;
-        const isRateLimit = error?.status === 429 || error?.message?.includes("429");
+        const isRateLimit =
+          error?.status === 429 || error?.message?.includes("429");
         if (isRateLimit && retryCount < maxRetries) {
           const waitTime = Math.pow(2, retryCount) * 1000;
           console.log(`429 限流，等待 ${waitTime}ms`);
@@ -277,7 +331,7 @@ export const ScenePerformanceModal: FunctionalComponent<ScenePerformanceModalPro
       content: contentObj,
       primary_type: (Object.keys(contentObj)[0] as any) || "dialogue",
       round: currentRound,
-      order: performances.length
+      order: performances.length,
     });
 
     setUserInputs({});
@@ -288,7 +342,11 @@ export const ScenePerformanceModal: FunctionalComponent<ScenePerformanceModalPro
   const handleFinish = async () => {
     setIsProcessing(true);
     try {
-      const summary = await generateSceneSummary(scene, performances, characters);
+      const summary = await generateSceneSummary(
+        scene,
+        performances,
+        characters,
+      );
       setGeneratedSummary(summary);
     } catch (error) {
       console.error("生成摘要失败:", error);
@@ -326,7 +384,6 @@ export const ScenePerformanceModal: FunctionalComponent<ScenePerformanceModalPro
   const handleClearHistory = async () => {
     if (!confirm("确定要清空当前场景的所有演出记录吗？")) return;
     try {
-      const { deletePerformancesBySceneId } = await import("@/db/models/performances");
       await deletePerformancesBySceneId(scene.id);
       await loadPerformances();
       setCurrentRound(1);
@@ -365,10 +422,14 @@ export const ScenePerformanceModal: FunctionalComponent<ScenePerformanceModalPro
   };
 
   const totalRounds = scene.max_rounds || 5;
-  const progress = totalRounds > 0 ? Math.round((currentRound / totalRounds) * 100) : 0;
+  const progress =
+    totalRounds > 0 ? Math.round((currentRound / totalRounds) * 100) : 0;
   const currentPerformer = getCurrentPerformer();
   const isUserTurn = currentPerformer?.isUser;
   const isAiTurn = currentPerformer && !currentPerformer.isUser;
+  
+  // 检查是否所有轮次都已完成（没有待表演的演员）
+  const isAllRoundsComplete = !currentPerformer && currentRound >= totalRounds;
 
   const currentRoundPlan = roundPlan.find((r) => r.round === currentRound);
   const currentRoundGoal = currentRoundPlan?.description || scene.goal;
@@ -378,22 +439,43 @@ export const ScenePerformanceModal: FunctionalComponent<ScenePerformanceModalPro
       <div class="w-full h-full max-w-7xl mx-auto p-2 md:p-4 flex flex-col">
         <div class="bg-dark-surface rounded-lg shadow-2xl flex flex-col h-full overflow-hidden">
           {/* 头部 */}
-          <div class="flex-shrink-0 p-3 md:p-4 border-b border-dark-accent">
+          <div class="shrink-0 p-3 md:p-4 border-b border-dark-accent">
             {/* 标题行 */}
             <div class="flex items-start justify-between gap-2 mb-2">
               <div class="flex-1 min-w-0">
-                <h2 class="text-lg md:text-2xl font-bold gradient-text truncate">🎬 {scene.name}</h2>
-                <div class="text-xs md:text-sm text-gray-400 mt-1">轮次：{currentRound} / {totalRounds}</div>
+                <h2 class="text-lg md:text-2xl font-bold gradient-text truncate">
+                  🎬 {scene.name}
+                </h2>
+                <div class="text-xs md:text-sm text-gray-400 mt-1">
+                  轮次：{currentRound} / {totalRounds}
+                </div>
               </div>
               {/* 右侧按钮 - 移动端折叠 */}
-              <div class="flex items-center gap-1 md:gap-2 flex-shrink-0">
-                <Button onClick={handleClose} variant="ghost" size="sm" class="px-2">✕</Button>
+              <div class="flex items-center gap-1 md:gap-2 shrink-0">
+                <Button
+                  onClick={handleClose}
+                  variant="ghost"
+                  size="sm"
+                  class="px-2"
+                >
+                  ✕
+                </Button>
               </div>
             </div>
-            
+
             {/* 工具栏 - 移动端单独一行 */}
             <div class="flex items-center gap-2 mb-2 flex-wrap">
-              <Button onClick={() => { if (confirm("确定要清空所有演出记录吗？")) handleClearHistory(); }} variant="secondary" size="sm" class="text-xs">🗑️</Button>
+              <Button
+                onClick={() => {
+                  if (confirm("确定要清空所有演出记录吗？"))
+                    handleClearHistory();
+                }}
+                variant="secondary"
+                size="sm"
+                class="text-xs"
+              >
+                🗑️
+              </Button>
               <ModelButton
                 providers={providers}
                 selectedProviderId={selectedProviderId}
@@ -411,24 +493,35 @@ export const ScenePerformanceModal: FunctionalComponent<ScenePerformanceModalPro
                 size="sm"
               />
             </div>
-            
-            <p class="text-xs md:text-sm text-gray-400 mb-2 line-clamp-2">{scene.description}</p>
-            
+
+            <p class="text-xs md:text-sm text-gray-400 mb-2 line-clamp-2">
+              {scene.description}
+            </p>
+
             {/* 当前轮次目标 */}
             {status === "performing" && currentRoundGoal && (
               <div class="bg-primary-600/20 border border-primary-500/30 rounded-lg px-3 py-2 mt-2">
-                <div class="text-xs text-primary-300 mb-1">🎯 第 {currentRound} 轮目标</div>
-                <div class="text-sm text-white font-medium">{currentRoundGoal}</div>
+                <div class="text-xs text-primary-300 mb-1">
+                  🎯 第 {currentRound} 轮目标
+                </div>
+                <div class="text-sm text-white font-medium">
+                  {currentRoundGoal}
+                </div>
               </div>
             )}
             {status === "idle" && scene.goal && (
-              <div class="text-xs text-primary-400 mt-2">🎯 场景目标：{scene.goal}</div>
+              <div class="text-xs text-primary-400 mt-2">
+                🎯 场景目标：{scene.goal}
+              </div>
             )}
-            
+
             {/* 进度条 */}
             {totalRounds > 0 && (
               <div class="mt-2 h-1.5 md:h-2 bg-dark-accent rounded-full overflow-hidden">
-                <div class="h-full bg-gradient-to-r from-primary-600 to-primary-400 transition-all duration-300" style={{ width: `${progress}%` }} />
+                <div
+                  class="h-full bg-linear-to-r from-primary-600 to-primary-400 transition-all duration-300"
+                  style={{ width: `${progress}%` }}
+                />
               </div>
             )}
           </div>
@@ -444,7 +537,7 @@ export const ScenePerformanceModal: FunctionalComponent<ScenePerformanceModalPro
           </div>
 
           {/* 底部控制区域 */}
-          <div class="flex-shrink-0 border-t border-dark-accent">
+          <div class="shrink-0 border-t border-dark-accent">
             {/* 状态栏 */}
             <div class="flex flex-col md:flex-row md:items-center justify-between px-3 md:px-4 py-2 md:py-3 bg-dark-accent/20 gap-2">
               <div class="flex items-center gap-2 md:gap-4 flex-wrap">
@@ -457,18 +550,33 @@ export const ScenePerformanceModal: FunctionalComponent<ScenePerformanceModalPro
                   <span class="text-xs md:text-sm text-gray-400">准备开始</span>
                 )}
                 {status === "completed" && (
-                  <span class="text-xs md:text-sm text-green-400">✅ 演出完成</span>
+                  <span class="text-xs md:text-sm text-green-400">
+                    ✅ 演出完成
+                  </span>
                 )}
-                
+
                 {/* 当前轮到谁 */}
                 {status === "performing" && (
                   <span class="text-xs md:text-sm text-gray-300">
                     {currentActor ? (
-                      <>🤖 <span class="text-white">{currentActor}</span> 生成中...</>
+                      <>
+                        🤖 <span class="text-white">{currentActor}</span>{" "}
+                        生成中...
+                      </>
                     ) : isUserTurn ? (
-                      <>👤 轮到 <span class="text-primary-300">{currentPerformer?.characterName}</span></>
+                      <>
+                        👤 轮到{" "}
+                        <span class="text-primary-300">
+                          {currentPerformer?.characterName}
+                        </span>
+                      </>
                     ) : isAiTurn ? (
-                      <>🤖 等待 <span class="text-white">{currentPerformer?.characterName}</span></>
+                      <>
+                        🤖 等待{" "}
+                        <span class="text-white">
+                          {currentPerformer?.characterName}
+                        </span>
+                      </>
                     ) : (
                       <>✓ 本轮完成</>
                     )}
@@ -477,21 +585,67 @@ export const ScenePerformanceModal: FunctionalComponent<ScenePerformanceModalPro
               </div>
               <div class="flex gap-2 justify-end">
                 {status === "idle" && (
-                  <Button onClick={handleStart} isLoading={isProcessing} size="sm">🎬 开始</Button>
+                  <Button
+                    onClick={handleStart}
+                    isLoading={isProcessing}
+                    size="sm"
+                  >
+                    🎬 开始
+                  </Button>
                 )}
                 {status === "performing" && isAiTurn && !currentActor && (
-                  <Button onClick={handleStart} isLoading={isProcessing} size="sm">🎬 继续</Button>
+                  <Button
+                    onClick={handleStart}
+                    isLoading={isProcessing}
+                    size="sm"
+                  >
+                    🎬 继续
+                  </Button>
                 )}
                 {status === "performing" && isUserTurn && (
-                  <Button onClick={handleUserInput} isLoading={isProcessing} size="sm">✓ 确认</Button>
+                  <Button
+                    onClick={handleUserInput}
+                    isLoading={isProcessing}
+                    size="sm"
+                  >
+                    ✓ 确认
+                  </Button>
+                )}
+                {status === "performing" && isAllRoundsComplete && (
+                  <Button
+                    onClick={handleEndPerformance}
+                    variant="primary"
+                    size="sm"
+                  >
+                    🏁 结束演出
+                  </Button>
                 )}
                 {status === "completed" && !generatedSummary && (
-                  <Button onClick={handleFinish} isLoading={isProcessing} variant="primary" size="sm">📝 摘要</Button>
+                  <Button
+                    onClick={handleFinish}
+                    isLoading={isProcessing}
+                    variant="primary"
+                    size="sm"
+                  >
+                    📝 生成总结
+                  </Button>
                 )}
                 {status === "completed" && generatedSummary && (
                   <>
-                    <Button onClick={handleSkipSummary} variant="ghost" size="sm">跳过</Button>
-                    <Button onClick={handleSaveSummary} isLoading={isProcessing} size="sm">💾 保存</Button>
+                    <Button
+                      onClick={handleSkipSummary}
+                      variant="ghost"
+                      size="sm"
+                    >
+                      跳过
+                    </Button>
+                    <Button
+                      onClick={handleSaveSummary}
+                      isLoading={isProcessing}
+                      size="sm"
+                    >
+                      💾 保存
+                    </Button>
                   </>
                 )}
               </div>
@@ -501,12 +655,24 @@ export const ScenePerformanceModal: FunctionalComponent<ScenePerformanceModalPro
             {status === "performing" && isUserTurn && currentPerformer && (
               <div class="px-2 md:px-4 py-2 border-t border-dark-accent/50">
                 {(() => {
-                  const character = findCharacterByName(currentPerformer.characterName, characters);
+                  const character = findCharacterByName(
+                    currentPerformer.characterName,
+                    characters,
+                  );
                   return character ? (
                     <UserPerformanceInput
                       character={character}
-                      value={userInputs[character.id] || { dialogue: "", action: "", thought: "", emotion: "" }}
-                      onChange={(value) => setUserInputs({ ...userInputs, [character.id]: value })}
+                      value={
+                        userInputs[character.id] || {
+                          dialogue: "",
+                          action: "",
+                          thought: "",
+                          emotion: "",
+                        }
+                      }
+                      onChange={(value) =>
+                        setUserInputs({ ...userInputs, [character.id]: value })
+                      }
                     />
                   ) : null;
                 })()}
@@ -514,22 +680,29 @@ export const ScenePerformanceModal: FunctionalComponent<ScenePerformanceModalPro
             )}
 
             {/* AI 生成中提示 */}
-            {status === "performing" && (thinkingContent || streamingContent) && (
-              <div class="px-2 md:px-4 py-2 border-t border-dark-accent/50">
-                {thinkingContent && isThinkingModel && enableThinking && (
-                  <div class="bg-purple-900/20 rounded p-2 mb-2">
-                    <div class="text-xs text-purple-300 mb-1">🧠 思考中...</div>
-                    <div class="text-xs text-purple-200/70 whitespace-pre-wrap max-h-16 md:max-h-20 overflow-y-auto font-mono">{thinkingContent}</div>
-                  </div>
-                )}
-                {streamingContent && (
-                  <div class="bg-dark-accent/30 rounded p-2">
-                    <div class="text-xs text-gray-400 mb-1">✨ 生成中...</div>
-                    <div class="text-xs md:text-sm text-gray-300 whitespace-pre-wrap max-h-16 md:max-h-24 overflow-y-auto">{streamingContent}</div>
-                  </div>
-                )}
-              </div>
-            )}
+            {status === "performing" &&
+              (thinkingContent || streamingContent) && (
+                <div class="px-2 md:px-4 py-2 border-t border-dark-accent/50">
+                  {thinkingContent && isThinkingModel && enableThinking && (
+                    <div class="bg-purple-900/20 rounded p-2 mb-2">
+                      <div class="text-xs text-purple-300 mb-1">
+                        🧠 思考中...
+                      </div>
+                      <div class="text-xs text-purple-200/70 whitespace-pre-wrap max-h-16 md:max-h-20 overflow-y-auto font-mono">
+                        {thinkingContent}
+                      </div>
+                    </div>
+                  )}
+                  {streamingContent && (
+                    <div class="bg-dark-accent/30 rounded p-2">
+                      <div class="text-xs text-gray-400 mb-1">✨ 生成中...</div>
+                      <div class="text-xs md:text-sm text-gray-300 whitespace-pre-wrap max-h-16 md:max-h-24 overflow-y-auto">
+                        {streamingContent}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
           </div>
         </div>
       </div>
@@ -539,15 +712,23 @@ export const ScenePerformanceModal: FunctionalComponent<ScenePerformanceModalPro
         <div class="fixed inset-0 z-60 bg-black/90 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
           <div class="bg-dark-surface rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] md:max-h-[80vh] overflow-hidden">
             <div class="p-3 md:p-4 border-b border-dark-accent">
-              <h3 class="text-lg md:text-xl font-bold gradient-text">📝 场景摘要</h3>
-              <p class="text-xs md:text-sm text-gray-400 mt-1">演出已完成，请确认或编辑场景摘要</p>
+              <h3 class="text-lg md:text-xl font-bold gradient-text">
+                📝 场景摘要
+              </h3>
+              <p class="text-xs md:text-sm text-gray-400 mt-1">
+                演出已完成，请确认或编辑场景摘要
+              </p>
             </div>
             <div class="p-3 md:p-4 space-y-3 md:space-y-4 overflow-y-auto max-h-[60vh]">
               <div class="bg-dark-accent/30 rounded-lg p-2 md:p-3">
-                <div class="text-xs md:text-sm text-gray-400">已完成 {performances.length} 条表演记录，共 {totalRounds} 轮</div>
+                <div class="text-xs md:text-sm text-gray-400">
+                  已完成 {performances.length} 条表演记录，共 {totalRounds} 轮
+                </div>
               </div>
               <div>
-                <label class="block text-xs md:text-sm font-medium text-gray-300 mb-2">场景摘要（可编辑）</label>
+                <label class="block text-xs md:text-sm font-medium text-gray-300 mb-2">
+                  场景摘要（可编辑）
+                </label>
                 <textarea
                   class="w-full h-32 md:h-48 bg-dark-accent/30 border border-dark-accent rounded-lg p-2 md:p-3 text-xs md:text-sm text-gray-300 resize-none focus:outline-none focus:ring-2 focus:ring-primary-500"
                   value={generatedSummary}
@@ -556,8 +737,16 @@ export const ScenePerformanceModal: FunctionalComponent<ScenePerformanceModalPro
                 />
               </div>
               <div class="flex justify-between items-center pt-2">
-                <Button onClick={handleSkipSummary} variant="ghost" size="sm">跳过</Button>
-                <Button onClick={handleSaveSummary} isLoading={isProcessing} size="sm">💾 保存</Button>
+                <Button onClick={handleSkipSummary} variant="ghost" size="sm">
+                  跳过
+                </Button>
+                <Button
+                  onClick={handleSaveSummary}
+                  isLoading={isProcessing}
+                  size="sm"
+                >
+                  💾 保存
+                </Button>
               </div>
             </div>
           </div>
@@ -566,3 +755,4 @@ export const ScenePerformanceModal: FunctionalComponent<ScenePerformanceModalPro
     </div>
   );
 };
+

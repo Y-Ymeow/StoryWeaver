@@ -1,5 +1,6 @@
 import { Component, type ComponentChildren } from 'preact'
 import type { ErrorBoundaryProps, ErrorBoundaryState } from '@/types/common'
+import { logError } from '@/lib/error-logger'
 
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
@@ -13,6 +14,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   componentDidCatch(error: Error, errorInfo: any) {
     console.error('ErrorBoundary caught an error:', error, errorInfo)
+    logError(
+      `组件错误：${error.message}`,
+      { error, errorInfo },
+      'ErrorBoundary'
+    )
   }
 
   render() {

@@ -66,8 +66,22 @@ export const RoomInfoEditor: FunctionalComponent<RoomInfoEditorProps> = ({
       onClose={onClose}
       title="✏️ 编辑房间信息"
       size="lg"
+      footer={
+        <div class="flex justify-end gap-3">
+          <Button onClick={onClose} variant="secondary">
+            取消
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            isLoading={isLoading}
+            disabled={!name.trim()}
+          >
+            保存
+          </Button>
+        </div>
+      }
     >
-      <div class="space-y-4 max-h-[70vh] overflow-y-auto">
+      <div class="space-y-4">
         <div>
           <label class="block text-sm font-medium text-gray-300 mb-2">
             房间名称 *
@@ -97,7 +111,9 @@ export const RoomInfoEditor: FunctionalComponent<RoomInfoEditorProps> = ({
           </label>
           <TextArea
             value={plotSummary}
-            onInput={(e) => setPlotSummary((e.target as HTMLTextAreaElement).value)}
+            onInput={(e) =>
+              setPlotSummary((e.target as HTMLTextAreaElement).value)
+            }
             placeholder="描述主要剧情发展..."
             rows={3}
           />
@@ -109,7 +125,9 @@ export const RoomInfoEditor: FunctionalComponent<RoomInfoEditorProps> = ({
           </label>
           <TextArea
             value={worldview}
-            onInput={(e) => setWorldview((e.target as HTMLTextAreaElement).value)}
+            onInput={(e) =>
+              setWorldview((e.target as HTMLTextAreaElement).value)
+            }
             placeholder="描述故事发生的世界背景..."
             rows={2}
           />
@@ -124,19 +142,6 @@ export const RoomInfoEditor: FunctionalComponent<RoomInfoEditorProps> = ({
             onInput={(e) => setTone((e.target as HTMLInputElement).value)}
             placeholder="如：轻松、悬疑、悲伤"
           />
-        </div>
-
-        <div class="flex justify-end gap-3 pt-4 border-t border-dark-accent">
-          <Button onClick={onClose} variant="secondary">
-            取消
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            isLoading={isLoading}
-            disabled={!name.trim()}
-          >
-            保存
-          </Button>
         </div>
       </div>
     </Modal>
