@@ -3,7 +3,7 @@
  */
 
 import { FunctionalComponent } from "preact";
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import { Button, Card, Modal } from "@components/ui/common";
 import {
   getLogs,
@@ -30,10 +30,14 @@ export const ErrorLogsSection: FunctionalComponent<ErrorLogsSectionProps> = ({
     bySource: Record<string, number>;
   } | null>(null);
 
+  useEffect(() => {
+    loadErrorLogs();
+  }, []);
+
   const loadErrorLogs = () => {
     try {
       const logs = getLogs();
-      console.log("[Settings] 加载错误日志:", logs.length, "条");
+
       setErrorLogs(logs);
       setErrorLogsStats(getLogsStats());
     } catch (e: any) {
@@ -55,7 +59,6 @@ export const ErrorLogsSection: FunctionalComponent<ErrorLogsSectionProps> = ({
   };
 
   const handleTestErrorLogger = () => {
-    console.log("[测试] 开始测试错误日志系统...");
     testErrorLogger();
 
     logError("这是一个测试错误", new Error("测试用错误"), "test-button");
@@ -156,14 +159,12 @@ export const ErrorLogsSection: FunctionalComponent<ErrorLogsSectionProps> = ({
                 <Button onClick={handleClearErrorLogs} variant="danger">
                   🗑️ 清除
                 </Button>
-                <Button onClick={() => setShowErrorLogs(false)}>
-                  关闭
-                </Button>
+                <Button onClick={() => setShowErrorLogs(false)}>关闭</Button>
               </div>
             </div>
           }
         >
-          <div class="max-h-[70vh] overflow-y-auto space-y-2">
+          <div class="space-y-2">
             {errorLogs.length === 0 ? (
               <div class="text-center py-8 text-gray-400">
                 <div class="text-4xl mb-2">✨</div>
@@ -177,31 +178,41 @@ export const ErrorLogsSection: FunctionalComponent<ErrorLogsSectionProps> = ({
                     log.type === "error"
                       ? "bg-red-900/20 border-red-500/30"
                       : log.type === "warn"
-                      ? "bg-yellow-900/20 border-yellow-500/30"
-                      : "bg-blue-900/20 border-blue-500/30"
+                        ? "bg-yellow-900/20 border-yellow-500/30"
+                        : "bg-blue-900/20 border-blue-500/30"
                   }`}
                 >
                   <div class="flex items-start justify-between gap-2">
                     <div class="flex-1">
                       <div class="flex items-center gap-2 mb-1">
                         <span class="text-lg">
-                          {log.type === "error" ? "❌" : log.type === "warn" ? "⚠️" : "ℹ️"}
-                        </span>
-                        <span class={`text-xs font-medium px-2 py-0.5 rounded ${
-                          log.type === "error"
-                            ? "bg-red-500/30 text-red-300"
+                          {log.type === "error"
+                            ? "❌"
                             : log.type === "warn"
-                            ? "bg-yellow-500/30 text-yellow-300"
-                            : "bg-blue-500/30 text-blue-300"
-                        }`}>
+                              ? "⚠️"
+                              : "ℹ️"}
+                        </span>
+                        <span
+                          class={`text-xs font-medium px-2 py-0.5 rounded ${
+                            log.type === "error"
+                              ? "bg-red-500/30 text-red-300"
+                              : log.type === "warn"
+                                ? "bg-yellow-500/30 text-yellow-300"
+                                : "bg-blue-500/30 text-blue-300"
+                          }`}
+                        >
                           {log.type}
                         </span>
-                        <span class="text-xs text-gray-500">[{log.source}]</span>
+                        <span class="text-xs text-gray-500">
+                          [{log.source}]
+                        </span>
                         <span class="text-xs text-gray-500 ml-auto">
                           {new Date(log.timestamp).toLocaleString("zh-CN")}
                         </span>
                       </div>
-                      <div class="text-sm text-gray-200 break-all">{log.message}</div>
+                      <div class="text-sm text-gray-200 break-all">
+                        {log.message}
+                      </div>
                       {log.stack && (
                         <details class="mt-2">
                           <summary class="text-xs text-gray-400 cursor-pointer hover:text-gray-300">

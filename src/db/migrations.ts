@@ -2,14 +2,14 @@
  * 数据库迁移文件
  */
 
-import type { Database } from './index'
-import { TABLES, INDEXES } from './schema'
+import type { Database } from "./index";
+import { TABLES, INDEXES } from "./schema";
 
 export interface Migration {
-  version: number
-  description: string
-  up: (db: Database) => void
-  down?: (db: Database) => void
+  version: number;
+  description: string;
+  up: (db: Database) => void;
+  down?: (db: Database) => void;
 }
 
 /**
@@ -17,41 +17,47 @@ export interface Migration {
  */
 export const migration001: Migration = {
   version: 1,
-  description: '初始化数据库表结构',
+  description: "初始化数据库表结构",
   up: (db: Database) => {
     // 创建所有表
     Object.values(TABLES).forEach((sql) => {
-      db.run(sql)
-    })
+      db.run(sql);
+    });
 
     // 创建所有索引
     Object.values(INDEXES).forEach((sql) => {
-      db.run(sql)
-    })
+      db.run(sql);
+    });
 
     // 初始化默认设置 - 使用 INSERT OR REPLACE 确保值被正确设置
-    db.run(`INSERT OR REPLACE INTO system_settings (key, value) VALUES ('db_version', '1')`)
-    db.run(`INSERT OR REPLACE INTO system_settings (key, value) VALUES ('app_version', '0.0.1')`)
-    db.run(`INSERT OR REPLACE INTO system_settings (key, value) VALUES ('theme', 'dark')`)
+    db.run(
+      `INSERT OR REPLACE INTO system_settings (key, value) VALUES ('db_version', '1')`,
+    );
+    db.run(
+      `INSERT OR REPLACE INTO system_settings (key, value) VALUES ('app_version', '0.0.1')`,
+    );
+    db.run(
+      `INSERT OR REPLACE INTO system_settings (key, value) VALUES ('theme', 'dark')`,
+    );
   },
   down: (db: Database) => {
     // 删除所有表（按相反顺序）
-    db.run('DROP TABLE IF EXISTS provider_configs')
-    db.run('DROP TABLE IF EXISTS system_settings')
-    db.run('DROP TABLE IF EXISTS performances')
-    db.run('DROP TABLE IF EXISTS scene_characters')
-    db.run('DROP TABLE IF EXISTS characters')
-    db.run('DROP TABLE IF EXISTS scenes')
-    db.run('DROP TABLE IF EXISTS rooms')
-  }
-}
+    db.run("DROP TABLE IF EXISTS provider_configs");
+    db.run("DROP TABLE IF EXISTS system_settings");
+    db.run("DROP TABLE IF EXISTS performances");
+    db.run("DROP TABLE IF EXISTS scene_characters");
+    db.run("DROP TABLE IF EXISTS characters");
+    db.run("DROP TABLE IF EXISTS scenes");
+    db.run("DROP TABLE IF EXISTS rooms");
+  },
+};
 
 /**
  * 迁移 2 - 添加 performances.primary_type 和 scenes.round_plan 字段
  */
 export const migration002: Migration = {
   version: 2,
-  description: '添加 performances.primary_type 和 scenes.round_plan 字段',
+  description: "添加 performances.primary_type 和 scenes.round_plan 字段",
   up: (db: Database) => {
     // 检查 performances 表是否有 primary_type 字段
     try {
@@ -59,56 +65,60 @@ export const migration002: Migration = {
       let hasPrimaryType = false;
       while (checkStmt.step()) {
         const row = checkStmt.get() as any[];
-        if (row[1] === 'primary_type') {
+        if (row[1] === "primary_type") {
           hasPrimaryType = true;
           break;
         }
       }
       checkStmt.free();
-      
+
       if (!hasPrimaryType) {
-        db.run("ALTER TABLE performances ADD COLUMN primary_type TEXT NOT NULL DEFAULT 'dialogue'");
-        db.run("ALTER TABLE performances ADD COLUMN type TEXT DEFAULT 'dialogue'");
-        console.log('已添加 performances.primary_type 和 performances.type 字段');
+        db.run(
+          "ALTER TABLE performances ADD COLUMN primary_type TEXT NOT NULL DEFAULT 'dialogue'",
+        );
+        db.run(
+          "ALTER TABLE performances ADD COLUMN type TEXT DEFAULT 'dialogue'",
+        );
       }
     } catch (e) {
-      console.error('检查 performances 表结构失败:', e);
+      console.error("检查 performances 表结构失败:", e);
     }
-    
+
     // 检查 scenes 表是否有 round_plan 字段
     try {
       const checkStmt = db.prepare("PRAGMA table_info(scenes)");
       let hasRoundPlan = false;
       while (checkStmt.step()) {
         const row = checkStmt.get() as any[];
-        if (row[1] === 'round_plan') {
+        if (row[1] === "round_plan") {
           hasRoundPlan = true;
           break;
         }
       }
       checkStmt.free();
-      
+
       if (!hasRoundPlan) {
         db.run("ALTER TABLE scenes ADD COLUMN round_plan TEXT");
-        console.log('已添加 scenes.round_plan 字段');
       }
     } catch (e) {
-      console.error('检查 scenes 表结构失败:', e);
+      console.error("检查 scenes 表结构失败:", e);
     }
-    
+
     // 更新版本号
-    db.run(`INSERT OR REPLACE INTO system_settings (key, value) VALUES ('db_version', '2')`);
+    db.run(
+      `INSERT OR REPLACE INTO system_settings (key, value) VALUES ('db_version', '2')`,
+    );
   },
   down: (db: Database) => {
     // SQLite 不支持直接删除列，这里不做处理
-    console.log('迁移 v2 无法回滚');
-  }
-}
+    console.log("迁移 v2 无法回滚");
+  },
+};
 
 /**
  * 迁移列表
  */
-export const migrations: Migration[] = [migration001, migration002]
+export const migrations: Migration[] = [migration001, migration002];
 
 /**
  * 运行迁移
@@ -118,7 +128,7 @@ export function runMigrations(db: Database): void {
   let currentVersion = 0;
   try {
     const stmt = db.prepare(
-      "SELECT value FROM system_settings WHERE key = 'db_version'"
+      "SELECT value FROM system_settings WHERE key = 'db_version'",
     );
     if (stmt.step()) {
       const row = stmt.get() as any[];
@@ -141,7 +151,7 @@ export function runMigrations(db: Database): void {
 
       // 更新版本号 - 使用参数化查询
       const stmt = db.prepare(
-        "INSERT OR REPLACE INTO system_settings (key, value) VALUES ('db_version', ?)"
+        "INSERT OR REPLACE INTO system_settings (key, value) VALUES ('db_version', ?)",
       );
       stmt.run([String(migration.version)]);
       stmt.free();

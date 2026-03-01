@@ -34,11 +34,11 @@ function flushLogQueue(): void {
   try {
     const logs = getLogs();
     logs.unshift(...logQueue);
-    
+
     if (logs.length > MAX_LOGS) {
       logs.splice(MAX_LOGS);
     }
-    
+
     const jsonStr = JSON.stringify(logs);
     localStorage.setItem(STORAGE_KEY, jsonStr);
     logQueue = [];
@@ -52,12 +52,12 @@ function flushLogQueue(): void {
  */
 function queueLog(log: ErrorLog): void {
   logQueue.push(log);
-  
+
   // 清除之前的定时器
   if (saveTimeout) {
     clearTimeout(saveTimeout);
   }
-  
+
   // 500ms 后保存，避免频繁写入
   saveTimeout = window.setTimeout(() => {
     flushLogQueue();
@@ -89,7 +89,8 @@ export function interceptConsole(): void {
       type: "info",
       message: args.map(stringifyArg).join(" "),
       source: "console.log",
-      userAgent: typeof navigator !== "undefined" ? navigator.userAgent : undefined,
+      userAgent:
+        typeof navigator !== "undefined" ? navigator.userAgent : undefined,
     });
   };
 
@@ -102,7 +103,8 @@ export function interceptConsole(): void {
       type: "info",
       message: args.map(stringifyArg).join(" "),
       source: "console.debug",
-      userAgent: typeof navigator !== "undefined" ? navigator.userAgent : undefined,
+      userAgent:
+        typeof navigator !== "undefined" ? navigator.userAgent : undefined,
     });
   };
 
@@ -115,7 +117,8 @@ export function interceptConsole(): void {
       type: "info",
       message: args.map(stringifyArg).join(" "),
       source: "console.info",
-      userAgent: typeof navigator !== "undefined" ? navigator.userAgent : undefined,
+      userAgent:
+        typeof navigator !== "undefined" ? navigator.userAgent : undefined,
     });
   };
 
@@ -128,7 +131,8 @@ export function interceptConsole(): void {
       type: "warn",
       message: args.map(stringifyArg).join(" "),
       source: "console.warn",
-      userAgent: typeof navigator !== "undefined" ? navigator.userAgent : undefined,
+      userAgent:
+        typeof navigator !== "undefined" ? navigator.userAgent : undefined,
     });
   };
 
@@ -141,7 +145,8 @@ export function interceptConsole(): void {
       type: "error",
       message: args.map(stringifyArg).join(" "),
       source: "console.error",
-      userAgent: typeof navigator !== "undefined" ? navigator.userAgent : undefined,
+      userAgent:
+        typeof navigator !== "undefined" ? navigator.userAgent : undefined,
     });
   };
 
@@ -179,7 +184,7 @@ export interface ErrorLog {
 export function logError(
   message: string,
   error?: any,
-  source: string = "unknown"
+  source: string = "unknown",
 ): void {
   try {
     const log: ErrorLog = {
@@ -189,7 +194,8 @@ export function logError(
       message,
       stack: error?.stack || error?.message,
       source,
-      userAgent: typeof navigator !== "undefined" ? navigator.userAgent : undefined,
+      userAgent:
+        typeof navigator !== "undefined" ? navigator.userAgent : undefined,
     };
 
     // 同时输出到 console.error（会被拦截）
@@ -208,7 +214,7 @@ export function logError(
 export function logWarn(
   message: string,
   data?: any,
-  source: string = "unknown"
+  source: string = "unknown",
 ): void {
   try {
     const log: ErrorLog = {
@@ -218,7 +224,8 @@ export function logWarn(
       message,
       stack: data?.stack || (typeof data === "string" ? data : undefined),
       source,
-      userAgent: typeof navigator !== "undefined" ? navigator.userAgent : undefined,
+      userAgent:
+        typeof navigator !== "undefined" ? navigator.userAgent : undefined,
     };
 
     console.warn(`[${source}] ${message}`, data);
@@ -234,7 +241,7 @@ export function logWarn(
 export function logInfo(
   message: string,
   data?: any,
-  source: string = "unknown"
+  source: string = "unknown",
 ): void {
   try {
     const log: ErrorLog = {
@@ -243,7 +250,8 @@ export function logInfo(
       type: "info",
       message,
       source,
-      userAgent: typeof navigator !== "undefined" ? navigator.userAgent : undefined,
+      userAgent:
+        typeof navigator !== "undefined" ? navigator.userAgent : undefined,
     };
 
     console.log(`[${source}] ${message}`, data);
@@ -258,7 +266,6 @@ export function logInfo(
  */
 function saveLog(log: ErrorLog): void {
   if (!HAS_LOCAL_STORAGE) {
-    console.error("[error-logger] localStorage 不可用，使用内存存储");
     return;
   }
 
@@ -273,7 +280,6 @@ function saveLog(log: ErrorLog): void {
 
     const jsonStr = JSON.stringify(logs);
     localStorage.setItem(STORAGE_KEY, jsonStr);
-    console.log(`[error-logger] 日志已保存，共 ${logs.length} 条`);
   } catch (e: any) {
     // 如果是序列化失败，尝试清理循环引用
     if (e.message?.includes("circular")) {
@@ -311,7 +317,8 @@ export function exportLogs(): string {
   const logs = getLogs();
   const exportData = {
     exportedAt: new Date().toISOString(),
-    userAgent: typeof navigator !== "undefined" ? navigator.userAgent : undefined,
+    userAgent:
+      typeof navigator !== "undefined" ? navigator.userAgent : undefined,
     logsCount: logs.length,
     logs,
   };
@@ -337,7 +344,11 @@ export function downloadLogs(): void {
 /**
  * 获取日志统计信息
  */
-export function getLogsStats(): { total: number; byType: Record<string, number>; bySource: Record<string, number> } {
+export function getLogsStats(): {
+  total: number;
+  byType: Record<string, number>;
+  bySource: Record<string, number>;
+} {
   const logs = getLogs();
   const stats = {
     total: logs.length,
@@ -363,11 +374,8 @@ export function getLogsStats(): { total: number; byType: Record<string, number>;
 export function testErrorLogger(): void {
   console.log("[error-logger] 测试日志系统...");
   console.log("[error-logger] localStorage 可用:", HAS_LOCAL_STORAGE);
-  
+
   if (HAS_LOCAL_STORAGE) {
-    const currentData = localStorage.getItem(STORAGE_KEY);
-    console.log("[error-logger] 当前存储的日志数据:", currentData?.slice(0, 100) + "...");
-    
     const testLog: ErrorLog = {
       id: crypto.randomUUID(),
       timestamp: Date.now(),
@@ -376,13 +384,7 @@ export function testErrorLogger(): void {
       source: "test",
       userAgent: navigator.userAgent,
     };
-    
+
     saveLog(testLog);
-    
-    const afterSave = localStorage.getItem(STORAGE_KEY);
-    console.log("[error-logger] 保存测试日志后:", afterSave?.slice(0, 100) + "...");
-    
-    const logs = getLogs();
-    console.log("[error-logger] 获取到的日志数量:", logs.length);
   }
 }

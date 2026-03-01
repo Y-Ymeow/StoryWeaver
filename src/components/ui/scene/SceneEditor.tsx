@@ -110,7 +110,7 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
       setSetup(editingScene.setup);
       setSummary(editingScene.summary || "");
       setMaxRounds(editingScene.max_rounds);
-      console.log("加载场景轮次计划：", editingScene.round_plan);
+
       if (editingScene.round_plan) {
         setRoundPlans(
           typeof editingScene.round_plan === "string"
@@ -298,12 +298,17 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
         updated_at: 0,
       }));
 
-      const prompt = buildRoundPlanPrompt(roomContext, selectedCharsForPrompt, {
-        name: name || "未命名场景",
-        description,
-        goal,
-        maxRounds,
-      }, keywords.length > 0 ? keywords : undefined);
+      const prompt = buildRoundPlanPrompt(
+        roomContext,
+        selectedCharsForPrompt,
+        {
+          name: name || "未命名场景",
+          description,
+          goal,
+          maxRounds,
+        },
+        keywords.length > 0 ? keywords : undefined,
+      );
 
       const messages = [
         { role: "system", content: getRoundPlanSystemPrompt() },
@@ -796,7 +801,7 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
                 size="sm"
               />
             </div>
-            
+
             {/* 关键词控制 */}
             <div class="mb-3">
               <div class="flex items-center gap-2 mb-2">
@@ -805,7 +810,8 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
                   size="sm"
                   variant={keywords.length > 0 ? "primary" : "secondary"}
                 >
-                  🏷️ 关键词控制 {keywords.length > 0 ? `(${keywords.length})` : ""}
+                  🏷️ 关键词控制{" "}
+                  {keywords.length > 0 ? `(${keywords.length})` : ""}
                 </Button>
                 {keywords.length > 0 && (
                   <Button
@@ -817,22 +823,27 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
                   </Button>
                 )}
               </div>
-              
+
               {showKeywordsInput && (
                 <div class="space-y-2">
                   <p class="text-xs text-gray-400">
-                    为每场戏设置关键词，AI 会根据关键词生成剧情。留空则让 AI 自由发挥。
+                    为每场戏设置关键词，AI 会根据关键词生成剧情。留空则让 AI
+                    自由发挥。
                   </p>
                   <div class="space-y-2">
                     {Array.from({ length: maxRounds }).map((_, i) => (
                       <div key={i} class="flex items-center gap-2">
-                        <span class="text-xs text-gray-500 w-16">第{i + 1}场</span>
+                        <span class="text-xs text-gray-500 w-16">
+                          第{i + 1}场
+                        </span>
                         <input
                           type="text"
                           value={keywords[i] || ""}
                           onInput={(e) => {
                             const newKeywords = [...keywords];
-                            newKeywords[i] = (e.target as HTMLInputElement).value;
+                            newKeywords[i] = (
+                              e.target as HTMLInputElement
+                            ).value;
                             setKeywords(newKeywords);
                           }}
                           placeholder={`第${i + 1}场关键词（如：初次相遇、建立信任）`}
@@ -841,7 +852,9 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
                         {keywords[i] && (
                           <button
                             onClick={() => {
-                              const newKeywords = keywords.filter((_, idx) => idx !== i);
+                              const newKeywords = keywords.filter(
+                                (_, idx) => idx !== i,
+                              );
                               setKeywords(newKeywords);
                             }}
                             class="text-gray-400 hover:text-red-400"
@@ -855,7 +868,7 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
                 </div>
               )}
             </div>
-            
+
             <div class="flex items-center gap-2">
               <Button
                 onClick={handleGenerateRoundPlan}

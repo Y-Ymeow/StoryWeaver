@@ -18,7 +18,10 @@ interface SettingsProps {
 }
 
 export const Settings: FunctionalComponent<SettingsProps> = ({ onClose }) => {
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [message, setMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
   const [providers, setProviders] = useState<ProviderConfig[]>([]);
   const [activeProviderId, setActiveProviderId] = useState<string | null>(null);
 
@@ -46,19 +49,16 @@ export const Settings: FunctionalComponent<SettingsProps> = ({ onClose }) => {
   };
 
   return (
-    <Modal
-      isOpen={true}
-      onClose={onClose}
-      title="设置"
-      size="lg"
-    >
-      <div class="space-y-4 max-h-[70vh] overflow-y-auto">
+    <Modal isOpen={true} onClose={onClose} title="设置" size="lg">
+      <div class="space-y-4">
         {message && (
-          <div class={`p-3 rounded-lg text-sm ${
-            message.type === "success"
-              ? "bg-green-900/30 border border-green-500 text-green-300"
-              : "bg-red-900/30 border border-red-500 text-red-300"
-          }`}>
+          <div
+            class={`p-3 rounded-lg text-sm ${
+              message.type === "success"
+                ? "bg-green-900/30 border border-green-500 text-green-300"
+                : "bg-red-900/30 border border-red-500 text-red-300"
+            }`}
+          >
             {message.text}
           </div>
         )}
@@ -71,13 +71,9 @@ export const Settings: FunctionalComponent<SettingsProps> = ({ onClose }) => {
           onMessage={handleMessage}
         />
 
-        <DatabaseSettingsSection
-          onMessage={handleMessage}
-        />
+        <DatabaseSettingsSection onMessage={handleMessage} />
 
-        <ErrorLogsSection
-          onMessage={handleMessage}
-        />
+        <ErrorLogsSection onMessage={handleMessage} />
 
         <AboutSection />
       </div>
