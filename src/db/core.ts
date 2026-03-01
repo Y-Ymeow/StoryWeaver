@@ -10,6 +10,9 @@ import {
   storeFileHandle,
   readFileData,
   writeFileData,
+  loadFromOPFS,
+  saveToOPFS,
+  isOPFSSupported,
 } from "./file-system";
 
 // 数据库实例
@@ -17,6 +20,16 @@ let dbInstance: SqlJsDatabase | null = null;
 let fileHandle: FileSystemFileHandle | null = null;
 let isInitializing = false;
 let useMemoryMode = false;
+let useOPFSMode = false;
+
+// 检查句柄是否是 OPFS 句柄
+function isOPFSHandle(handle: FileSystemFileHandle): boolean {
+  return (handle as any).__isOPFS === true;
+}
+
+export function isOPFSMode(): boolean {
+  return useOPFSMode;
+}
 
 export type Database = SqlJsDatabase;
 
@@ -73,14 +86,29 @@ export async function initDB(options?: InitDBOptions): Promise<Database> {
 
     if (options?.fileHandle) {
       handle = options.fileHandle;
-      const dbData = await readFileData(handle);
 
-      if (dbData && !options.isNew) {
-        db = new SQL.Database(dbData);
-        console.log("数据库从文件加载成功");
+      // 检查是否是 OPFS 句柄
+      if (isOPFSHandle(handle)) {
+        // OPFS 模式
+        useOPFSMode = true;
+        const dbData = await loadFromOPFS();
+        if (dbData && !options.isNew) {
+          db = new SQL.Database(dbData);
+          console.log("数据库从 OPFS 加载成功");
+        } else {
+          db = new SQL.Database();
+          console.log("创建新的 OPFS 数据库");
+        }
       } else {
-        db = new SQL.Database();
-        console.log("创建新数据库");
+        // File System Access API 模式
+        const dbData = await readFileData(handle);
+        if (dbData && !options.isNew) {
+          db = new SQL.Database(dbData);
+          console.log("数据库从文件加载成功");
+        } else {
+          db = new SQL.Database();
+          console.log("创建新数据库");
+        }
       }
     } else if (options?.useMemory) {
       db = new SQL.Database();
@@ -126,10 +154,14 @@ export async function saveDBToFile(): Promise<void> {
 
   const data = dbInstance.export();
 
-  if (fileHandle && !useMemoryMode) {
+  if (useOPFSMode) {
+    // OPFS 模式
+    await saveToOPFS(data);
+  } else if (fileHandle && !useMemoryMode) {
+    // File System Access API 模式
     await writeFileData(fileHandle, data);
   } else if (!useMemoryMode) {
-    // 如果没有文件句柄但有存储的句柄，尝试获取
+    // 尝试获取存储的句柄
     const storedHandle = await getStoredFileHandle();
     if (storedHandle) {
       await writeFileData(storedHandle, data);

@@ -883,7 +883,7 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
               )}
             </div>
 
-            <div class="flex max-md:flex-col max-md:flex-col-reverse md:items-center gap-2">
+            <div class="flex max-md:flex-col-reverse md:items-center gap-2">
               <Button
                 onClick={handleGenerateRoundPlan}
                 isLoading={isGenerating}

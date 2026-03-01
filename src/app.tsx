@@ -100,14 +100,33 @@ export function App() {
   }, [dbOptions]);
 
   async function checkStoredHandle() {
-    const handle = await getStoredFileHandle();
+    const { isFileSystemAccessSupported, getStoredFileHandle, getOPFSFileHandle } = await import('./db/file-system');
 
-    if (handle) {
-      setDbOptions({ fileHandle: handle });
-    } else {
-      setShowDbSelector(true);
-      setIsLoading(false);
+    // 1. 优先检查 File System Access API（桌面端）
+    if (isFileSystemAccessSupported()) {
+      const handle = await getStoredFileHandle();
+      if (handle) {
+        setDbOptions({ fileHandle: handle, isNew: false });
+        setIsLoading(true);
+        return;
+      }
     }
+
+    // 2. 检查 OPFS（移动端）
+    const opfsHandle = await getOPFSFileHandle();
+    if (opfsHandle) {
+      const file = await opfsHandle.getFile();
+      if (file.size > 0) {
+        (opfsHandle as any).__isOPFS = true;
+        setDbOptions({ fileHandle: opfsHandle as any, isNew: false });
+        setIsLoading(true);
+        return;
+      }
+    }
+
+    // 3. 都没有，显示选择器
+    setShowDbSelector(true);
+    setIsLoading(false);
   }
 
   function handleDatabaseSelected(

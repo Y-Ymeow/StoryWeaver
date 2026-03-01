@@ -1,6 +1,6 @@
 import { FunctionalComponent } from "preact";
 import { useState, useEffect } from "preact/hooks";
-import { Button, Card } from "@components/ui/common";
+import { Button, Card, Modal } from "@components/ui/common";
 import { useRoomActions } from "@/stores";
 import { createRoom, getAllRooms, createCharacter, createScene } from "@/db";
 import type { Room } from "@/stores";
@@ -9,6 +9,14 @@ import {
   CreateRoomWizard,
   type CreateRoomData,
 } from "@/components/ui/home/CreateRoomWizard";
+import {
+  isFileSystemAccessSupported,
+  isOPFSSupported,
+  getOPFSFileHandle,
+  getStoredFileHandle,
+  clearOPFS,
+} from "@/db/file-system";
+import { isOPFSMode } from "@/db/core";
 
 // Hash 路由导航函数
 function navigateTo(path: string) {
@@ -37,6 +45,11 @@ export const HomePage: FunctionalComponent = () => {
   const [providers, setProviders] = useState<any[]>([]);
   const [activeProviderId, setActiveProviderId] = useState<string | null>(null);
 
+  // 数据库状态
+  const [showDbStatus, setShowDbStatus] = useState(false);
+  const [dbConnected, setDbConnected] = useState(false);
+  const [dbType, setDbType] = useState<"file" | "opfs" | "memory" | null>(null);
+
   // 加载 Provider
   useEffect(() => {
     const loaded = loadProviders();
@@ -47,10 +60,48 @@ export const HomePage: FunctionalComponent = () => {
     }
   }, []);
 
-  // 初始化加载房间数据
+  // 初始化加载房间数据 + 检测数据库状态
   useEffect(() => {
     loadRooms();
+    checkDatabaseStatus();
   }, []);
+
+  const checkDatabaseStatus = async () => {
+    const fileHandle = await getStoredFileHandle();
+    if (fileHandle) {
+      setDbConnected(true);
+      setDbType("file");
+      return;
+    }
+
+    if (isOPFSMode()) {
+      setDbConnected(true);
+      setDbType("opfs");
+      return;
+    }
+
+    setDbConnected(false);
+    setDbType(null);
+  };
+
+  const handleRefresh = async () => {
+    await checkDatabaseStatus();
+    loadRooms();
+  };
+
+  const handleClearOPFS = async () => {
+    if (!confirm("确定要清除 OPFS 数据库吗？此操作不可恢复！")) {
+      return;
+    }
+    try {
+      await clearOPFS();
+      setDbConnected(false);
+      setDbType(null);
+      alert("OPFS 数据库已清除，请刷新页面。");
+    } catch (err) {
+      alert("清除失败：" + (err instanceof Error ? err.message : "未知错误"));
+    }
+  };
 
   const loadRooms = async () => {
     try {
@@ -132,13 +183,32 @@ export const HomePage: FunctionalComponent = () => {
         <div class="container-responsive py-4">
           <div class="flex items-center justify-between py-4">
             <h1 class="text-2xl font-bold gradient-text">AI 剧本房</h1>
-            <div class="flex gap-2">
+            <div class="flex max-md:grid max-md:grid-cols-2 gap-2 items-center">
+              {/* 数据库状态指示器 */}
+              <div class="flex items-center gap-1 text-xs px-2 py-1 rounded bg-dark-accent/30">
+                <span
+                  class={`w-2 h-2 rounded-full ${
+                    dbConnected ? "bg-green-500" : "bg-red-500"
+                  }`}
+                ></span>
+                <span class="text-gray-400">
+                  {dbConnected
+                    ? dbType === "opfs"
+                      ? "OPFS"
+                      : "文件"
+                    : "未连接"}
+                </span>
+              </div>
+
               <Button
                 onClick={() => setShowSettings(true)}
                 variant="ghost"
                 size="sm"
               >
                 ⚙️ 设置
+              </Button>
+              <Button onClick={handleRefresh} variant="secondary" size="sm">
+                🔄 刷新
               </Button>
               <Button onClick={() => setIsCreateModalOpen(true)}>
                 创建新房间
