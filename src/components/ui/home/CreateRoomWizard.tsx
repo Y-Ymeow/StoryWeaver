@@ -1,5 +1,5 @@
 import { FunctionalComponent } from "preact";
-import { useState } from "preact/hooks";
+import { useState, useEffect } from "preact/hooks";
 import { Button, Modal, Input, TextArea } from "@components/ui/common";
 import type { Room } from "@stores";
 import { AIGenerate, type AIGenerateResult } from "./AIGenerate";
@@ -79,6 +79,7 @@ export const CreateRoomWizard: FunctionalComponent<CreateRoomWizardProps> = ({
   const [aiGenerateMode, setAiGenerateMode] = useState<
     "room" | "character" | "scene"
   >("room");
+  const [isAIGenerating, setIsAIGenerating] = useState(false);
 
   const handleAddCharacter = () => {
     setCharacters([
@@ -93,7 +94,41 @@ export const CreateRoomWizard: FunctionalComponent<CreateRoomWizardProps> = ({
     ]);
   };
 
+  // 重置表单
+  const resetForm = () => {
+    setStep(1);
+    setRoomData({
+      name: "",
+      setting: "",
+      plot_summary: "",
+      worldview: "",
+      tone: "",
+    });
+    setCharacters([
+      {
+        name: "",
+        background: "",
+        dialogue_style: "",
+        is_user: true,
+        type: "user",
+      },
+    ]);
+    setScenes([
+      { name: "", description: "", goal: "", setup: "", max_rounds: 10 },
+    ]);
+    setAiGenerateMode("room");
+    setIsAIGenerating(false);
+  };
+
+  // 关闭时重置表单
+  useEffect(() => {
+    if (!isOpen) {
+      resetForm();
+    }
+  }, [isOpen]);
+
   const handleAIResult = (result: AIGenerateResult) => {
+    setIsAIGenerating(false);
     if (aiGenerateMode === "room") {
       setRoomData({ ...roomData, ...result });
     } else if (aiGenerateMode === "character" && result.characters) {
@@ -553,14 +588,21 @@ export const CreateRoomWizard: FunctionalComponent<CreateRoomWizardProps> = ({
       {/* AI 生成模态框 */}
       <AIGenerate
         isOpen={showAIGenerate}
-        onClose={() => setShowAIGenerate(false)}
-        onGenerate={handleAIResult}
+        onClose={() => {
+          setShowAIGenerate(false);
+          setIsAIGenerating(false);
+        }}
+        onGenerate={(result) => {
+          setIsAIGenerating(false);
+          handleAIResult(result);
+        }}
         providers={providers}
         activeProviderId={activeProviderId}
         mode={aiGenerateMode}
         roomContext={roomData}
         characters={characters}
         scenes={scenes}
+        isLoading={isAIGenerating}
       />
     </Modal>
   );

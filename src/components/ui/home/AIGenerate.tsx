@@ -22,6 +22,7 @@ interface AIGenerateProps {
     dialogue_style: string;
   }>;
   scenes?: Array<{ name: string; description: string; goal: string }>;
+  isLoading?: boolean;
 }
 
 export interface AIGenerateResult {
@@ -56,6 +57,7 @@ export const AIGenerate: FunctionalComponent<AIGenerateProps> = ({
   roomContext,
   characters = [],
   scenes = [],
+  isLoading = false,
 }) => {
   const [mode, setMode] = useState<"room" | "character" | "scene" | "custom">(
     presetMode,
@@ -144,6 +146,7 @@ export const AIGenerate: FunctionalComponent<AIGenerateProps> = ({
         roomContext={roomContext}
         characters={characters}
         scenes={scenes}
+        isLoading={isLoading}
       />
     </>
   );

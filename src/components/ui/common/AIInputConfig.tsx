@@ -37,6 +37,7 @@ interface AIInputConfigProps {
     dialogue_style: string;
   }>;
   scenes?: Array<{ name: string; description: string; goal: string }>;
+  isLoading?: boolean;
 }
 
 export const AIInputConfig: FunctionalComponent<AIInputConfigProps> = ({
@@ -70,6 +71,20 @@ export const AIInputConfig: FunctionalComponent<AIInputConfigProps> = ({
   const resultEndRef = useRef<HTMLDivElement>(null);
 
   const selectedProvider = providers.find((p) => p.id === selectedProviderId);
+
+  // 每次打开时清空表单
+  useEffect(() => {
+    if (isOpen) {
+      setPrompt(presetPrompt);
+      setKeywords(presetKeywords);
+      setResult("");
+      setStreamingContent("");
+      setThinkingContent("");
+      setError(null);
+      setIsStreaming(false);
+      setIsGenerating(false);
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (selectedProvider) {

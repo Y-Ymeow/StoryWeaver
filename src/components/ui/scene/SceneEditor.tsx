@@ -117,11 +117,20 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
             ? JSON.parse(editingScene.round_plan)
             : editingScene.round_plan,
         );
+      } else {
+        setRoundPlans([]);
       }
     } else {
       resetForm();
     }
   }, [editingScene, isOpen]);
+
+  // 关闭时重置表单
+  useEffect(() => {
+    if (!isOpen) {
+      resetForm();
+    }
+  }, [isOpen]);
 
   // 初始化出场角色
   useEffect(() => {
@@ -174,8 +183,10 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
     setSetup("");
     setSummary("");
     setMaxRounds(10);
-    // 不清空轮次计划，避免保存后丢失
-    // setRoundPlans([]);
+    setRoundPlans([]);
+    setKeywords([]);
+    setShowKeywordsInput(false);
+    setSelectedSceneSummaries([]);
     if (characters.length > 0) {
       setSceneCharacters(
         characters.map((c) => ({
