@@ -72,7 +72,7 @@ export const ErrorLogsSection: FunctionalComponent<ErrorLogsSectionProps> = ({
       <Card hover={false}>
         <h3 class="text-lg font-semibold text-white mb-2">🐛 错误日志</h3>
         <div class="text-gray-300 space-y-2">
-          <div class="flex items-center justify-between">
+          <div class="flex max-md:flex-col max-md:gap-4 md:items-center justify-between">
             <p class="text-sm">
               {errorLogsStats ? (
                 <>
@@ -148,19 +148,17 @@ export const ErrorLogsSection: FunctionalComponent<ErrorLogsSectionProps> = ({
           title="🐛 错误日志"
           size="xl"
           footer={
-            <div class="flex justify-between w-full">
+            <div class="flex max-md:grid max-md:grid-cols-2 gap-2 justify-between w-full">
               <Button onClick={loadErrorLogs} variant="secondary">
                 🔄 刷新
               </Button>
-              <div class="flex gap-2">
-                <Button onClick={handleDownloadErrorLogs} variant="secondary">
-                  📥 导出
-                </Button>
-                <Button onClick={handleClearErrorLogs} variant="danger">
-                  🗑️ 清除
-                </Button>
-                <Button onClick={() => setShowErrorLogs(false)}>关闭</Button>
-              </div>
+              <Button onClick={handleDownloadErrorLogs} variant="secondary">
+                📥 导出
+              </Button>
+              <Button onClick={handleClearErrorLogs} variant="danger">
+                🗑️ 清除
+              </Button>
+              <Button onClick={() => setShowErrorLogs(false)}>关闭</Button>
             </div>
           }
         >

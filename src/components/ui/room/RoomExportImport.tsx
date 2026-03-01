@@ -200,7 +200,7 @@ export const RoomExportImport: FunctionalComponent<RoomExportImportProps> = ({
         {activeTab === "import" && (
           <div class="space-y-4">
             {/* 文件导入 */}
-            <Card class="p-4">
+            <Card>
               <h3 class="text-lg font-semibold text-white mb-3">
                 📁 从文件导入
               </h3>
@@ -218,7 +218,7 @@ export const RoomExportImport: FunctionalComponent<RoomExportImportProps> = ({
             </Card>
 
             {/* JSON 文本导入 */}
-            <Card class="p-4">
+            <Card>
               <h3 class="text-lg font-semibold text-white mb-3">
                 📝 从文本导入
               </h3>

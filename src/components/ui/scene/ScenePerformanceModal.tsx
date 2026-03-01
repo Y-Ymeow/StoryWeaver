@@ -554,7 +554,7 @@ export const ScenePerformanceModal: FunctionalComponent<
           {/* 底部控制区域 */}
           <div class="shrink-0 border-t border-dark-accent">
             {/* 状态栏 */}
-            <div class="flex flex-col md:flex-row md:items-center justify-between px-3 md:px-4 py-2 md:py-3 bg-dark-accent/20 gap-2">
+            <div class="flex flex-row md:items-center justify-between px-3 md:px-4 py-2 md:py-3 bg-dark-accent/20 gap-2">
               <div class="flex items-center gap-2 md:gap-4 flex-wrap">
                 {status === "performing" && (
                   <span class="text-xs md:text-sm font-semibold text-white px-2 py-0.5 md:px-3 md:py-1 bg-primary-600/30 rounded">

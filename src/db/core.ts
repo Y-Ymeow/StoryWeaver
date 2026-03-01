@@ -63,7 +63,6 @@ export async function initDB(options?: InitDBOptions): Promise<Database> {
   try {
     const initSqlJs = await loadSqlJs();
     const wasmPath = getWasmPath();
-    console.log("Loading SQL.js WASM from:", wasmPath);
 
     const SQL = await initSqlJs({
       locateFile: (_file: string) => wasmPath,
@@ -173,4 +172,3 @@ export function closeDB(): void {
 export function isMemoryMode(): boolean {
   return useMemoryMode;
 }
-

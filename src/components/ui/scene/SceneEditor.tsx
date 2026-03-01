@@ -475,7 +475,7 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
         title={editingScene ? "✏️ 编辑场景" : "🎬 创建场景"}
         size="xl"
         footer={
-          <div class="flex justify-end gap-3">
+          <div class="flex max-md:grid max-md:grid-cols-2 justify-end gap-3">
             <Button onClick={onClose} variant="secondary">
               取消
             </Button>
@@ -735,7 +735,7 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
           </div>
 
           {/* 出场角色选择 */}
-          <Card class="p-4">
+          <Card>
             <div class="flex items-center justify-between mb-3">
               <h4 class="font-semibold text-white">
                 🎭 出场角色 ({sceneCharacters.filter((c) => c.isInScene).length}
@@ -792,7 +792,7 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
           </Card>
 
           {/* AI 生成区域 */}
-          <Card class="p-4">
+          <Card>
             <div class="flex items-center justify-between mb-3">
               <h4 class="font-semibold text-white">🤖 AI 快速生成</h4>
               <ModelButton
@@ -843,7 +843,10 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
                   </p>
                   <div class="space-y-2">
                     {Array.from({ length: maxRounds }).map((_, i) => (
-                      <div key={i} class="flex items-center gap-2">
+                      <div
+                        key={i}
+                        class="flex max-md:flex-col md:items-center gap-2"
+                      >
                         <span class="text-xs text-gray-500 w-16">
                           第{i + 1}场
                         </span>
@@ -880,7 +883,7 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
               )}
             </div>
 
-            <div class="flex items-center gap-2">
+            <div class="flex max-md:flex-col max-md:flex-col-reverse md:items-center gap-2">
               <Button
                 onClick={handleGenerateRoundPlan}
                 isLoading={isGenerating}
@@ -926,10 +929,10 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
               </div>
             ) : (
               roundPlans.map((round, roundIndex) => (
-                <Card key={round.round} class="p-4">
-                  <div class="flex items-center justify-between mb-3">
-                    <div class="flex items-center gap-2">
-                      <span class="font-semibold text-white">
+                <Card key={round.round}>
+                  <div class="flex items-center justify-between max-md:items-end mb-3">
+                    <div class="flex max-md:flex-wrap md:items-center gap-2">
+                      <span class="font-semibold text-white max-md:w-full max-md:block">
                         第{round.round}场
                       </span>
                       <Input

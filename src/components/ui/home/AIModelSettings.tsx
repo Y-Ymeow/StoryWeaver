@@ -210,8 +210,8 @@ export const AIModelSettings: FunctionalComponent<AIModelSettingsProps> = ({
           ) : (
             <div class="space-y-2">
               {providers.map((provider) => (
-                <Card key={provider.id} hover={false} class="p-4">
-                  <div class="flex items-center justify-between">
+                <Card key={provider.id} hover={false}>
+                  <div class="flex max-md:flex-col gap-2 md:items-center justify-between">
                     <div class="flex-1">
                       <div class="flex items-center gap-2 mb-1">
                         <span class="font-semibold text-white">
@@ -240,7 +240,7 @@ export const AIModelSettings: FunctionalComponent<AIModelSettingsProps> = ({
                         <p>模型数量：{provider.custom_models?.length || 0}</p>
                       </div>
                     </div>
-                    <div class="flex flex-col gap-2">
+                    <div class="flex flex-col max-md:grid max-md:grid-cols-2 gap-2">
                       {activeProviderId !== provider.id && (
                         <Button
                           onClick={() => onSetActive(provider.id)}

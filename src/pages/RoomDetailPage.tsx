@@ -1,10 +1,6 @@
 import { FunctionalComponent } from "preact";
 import { useState, useEffect } from "preact/hooks";
-import {
-  Button,
-  Card,
-  CardBody,
-} from "@components/ui/common";
+import { Button, Card, CardBody } from "@components/ui/common";
 import {
   useRoomActions,
   useSceneActions,
@@ -175,7 +171,7 @@ export const RoomDetailPage: FunctionalComponent<RoomDetailPageProps> = ({
       {/* 头部 */}
       <header class="bg-dark-surface border-b border-dark-accent">
         <div class="container-responsive py-4">
-          <div class="flex items-center justify-between py-4 flex-wrap">
+          <div class="flex max-md:flex-col md:items-center justify-between py-4 flex-wrap">
             <div class="flex items-center gap-4">
               <Button onClick={onBack} variant="ghost" size="sm">
                 ← 返回
@@ -187,7 +183,7 @@ export const RoomDetailPage: FunctionalComponent<RoomDetailPageProps> = ({
                 </p>
               </div>
             </div>
-            <div class="flex gap-2 max-lg:pt-4">
+            <div class="flex max-md:grid max-md:grid-cols-2 gap-2 max-md:pt-4">
               <Button
                 onClick={() => setShowExportImport(true)}
                 variant="secondary"
@@ -254,13 +250,14 @@ export const RoomDetailPage: FunctionalComponent<RoomDetailPageProps> = ({
                   </Button>
                 </div>
               ) : (
-                <div class="space-y-2 grid grid-cols-3 max-lg:grid-cols-1 gap-5">
+                <div class="space-y-2 grid grid-cols-3 max-md:grid-cols-1 gap-5">
                   {scenes.map((scene) => (
                     <Card
                       key={scene.id}
                       class="card-hover cursor-pointer h-full"
                       header={
-                        <div class="flex-1 flex flex-row justify-between cursor-pointer"
+                        <div
+                          class="flex-1 flex flex-row justify-between cursor-pointer"
                           onClick={() => {
                             setPerformanceScene(scene);
                             setShowPerformanceModal(true);
@@ -375,7 +372,7 @@ export const RoomDetailPage: FunctionalComponent<RoomDetailPageProps> = ({
                   </div>
                 )}
               </div>
-              <div class="mt-4 flex gap-3">
+              <div class="mt-4 flex max-md:flex-col gap-3">
                 <Button
                   onClick={() => setShowSummaryGenerator(true)}
                   variant="primary"
@@ -475,3 +472,4 @@ export const RoomDetailPage: FunctionalComponent<RoomDetailPageProps> = ({
     </div>
   );
 };
+

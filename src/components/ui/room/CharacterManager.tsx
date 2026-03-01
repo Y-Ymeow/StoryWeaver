@@ -207,7 +207,7 @@ export const CharacterManager: FunctionalComponent<CharacterManagerProps> = ({
           setIsAdding(false);
         }}
         header={
-          <div class="flex justify-between items-center w-full">
+          <div class="flex max-md:flex-col max-md:gap-3 justify-between md:items-center w-full">
             <h3 class="text-lg font-semibold text-white">
               👥 角色管理 ({characters.length})
             </h3>
@@ -226,7 +226,7 @@ export const CharacterManager: FunctionalComponent<CharacterManagerProps> = ({
           </div>
         }
         footer={
-          isAdding && editingChar ? (
+          isAdding || editingChar ? (
             <div class="flex justify-end gap-3 pt-4 border-t border-dark-accent">
               <Button onClick={cancelAdd} variant="secondary">
                 取消
@@ -254,7 +254,7 @@ export const CharacterManager: FunctionalComponent<CharacterManagerProps> = ({
               ) : (
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {characters.map((char) => (
-                    <Card key={char.id} class="p-4">
+                    <Card key={char.id}>
                       <div class="flex items-start justify-between mb-2">
                         <div class="flex items-center gap-2">
                           <div class="w-10 h-10 rounded-full bg-primary-600/20 flex items-center justify-center text-xl">
