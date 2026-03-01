@@ -6,7 +6,12 @@ import { LoadingScreen } from "@components/ui/common/LoadingScreen";
 import { ErrorBoundary } from "@components/ui/common/ErrorBoundary";
 import { DatabaseSelector } from "@components/ui/common/DatabaseSelector";
 import { getStoredFileHandle } from "./db/file-system";
-import { logError } from "./lib/error-logger";
+import { logError, interceptConsole } from "./lib/error-logger";
+
+// 启用 console 拦截
+if (typeof window !== "undefined") {
+  interceptConsole();
+}
 
 // 全局错误处理
 if (typeof window !== "undefined") {

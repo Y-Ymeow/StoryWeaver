@@ -1,627 +1,86 @@
+/**
+ * 设置页面主组件
+ */
+
 import { FunctionalComponent } from "preact";
 import { useState, useEffect } from "preact/hooks";
-import { Button, Card, Modal } from "@components/ui/common";
+import { Button, Modal } from "@components/ui/common";
 import {
-  getStoredFileHandle,
-  clearStoredFileHandle,
-  selectDatabaseFile,
-  storeFileHandle,
-} from "@/db/file-system";
-import { setFileHandle, saveDBToFile, isMemoryMode } from "@/db/core";
-import { AIModelSettings } from "./AIModelSettings";
-import { createClient } from "@/lib/openai/client";
+  AIModelSettingsSection,
+  DatabaseSettingsSection,
+  ErrorLogsSection,
+  AboutSection,
+} from "./settings";
 import type { ProviderConfig } from "@stores/types";
-import {
-  getLogs,
-  clearLogs,
-  downloadLogs,
-  getLogsStats,
-  type ErrorLog,
-} from "@/lib/error-logger";
 
 interface SettingsProps {
   onClose: () => void;
 }
 
-// 模拟的 Provider 管理（实际应该从 store 获取）
-const STORAGE_KEY = "ai-providers";
-
-function loadProviders(): ProviderConfig[] {
-  try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveProviders(providers: ProviderConfig[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(providers));
-}
-
 export const Settings: FunctionalComponent<SettingsProps> = ({ onClose }) => {
-  const [hasStoredHandle, setHasStoredHandle] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [message, setMessage] = useState<{
-    type: "success" | "error";
-    text: string;
-  } | null>(null);
-  const [isMemory, setIsMemory] = useState(false);
-  const [showAIModelSettings, setShowAIModelSettings] = useState(false);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [providers, setProviders] = useState<ProviderConfig[]>([]);
   const [activeProviderId, setActiveProviderId] = useState<string | null>(null);
 
-  // 错误日志相关状态
-  const [showErrorLogs, setShowErrorLogs] = useState(false);
-  const [errorLogs, setErrorLogs] = useState<ErrorLog[]>([]);
-  const [errorLogsStats, setErrorLogsStats] = useState<{
-    total: number;
-    byType: Record<string, number>;
-    bySource: Record<string, number>;
-  } | null>(null);
-
-  const checkStoredHandle = async () => {
-    const handle = await getStoredFileHandle();
-    setHasStoredHandle(!!handle);
-    setIsMemory(isMemoryMode());
-  };
-
   const loadProvidersFromStorage = () => {
-    const loaded = loadProviders();
-    setProviders(loaded);
-    const active = loaded.find((p) => p.is_active);
-    if (active) {
-      setActiveProviderId(active.id);
+    try {
+      const data = localStorage.getItem("ai-providers");
+      const loaded = data ? JSON.parse(data) : [];
+      setProviders(loaded);
+      const active = loaded.find((p: ProviderConfig) => p.is_active);
+      if (active) {
+        setActiveProviderId(active.id);
+      }
+    } catch (error) {
+      console.error("加载 Provider 配置失败:", error);
     }
-  };
-
-  const loadErrorLogs = () => {
-    const logs = getLogs();
-    setErrorLogs(logs);
-    setErrorLogsStats(getLogsStats());
   };
 
   useEffect(() => {
-    checkStoredHandle();
     loadProvidersFromStorage();
   }, []);
 
-  const handleSelectNewFile = async () => {
-    setIsLoading(true);
-    setMessage(null);
-    try {
-      const fileHandle = await selectDatabaseFile();
-      if (fileHandle) {
-        await storeFileHandle(fileHandle);
-        setFileHandle(fileHandle);
-        setHasStoredHandle(true);
-        setMessage({ type: "success", text: "数据库文件已连接" });
-      }
-    } catch (err) {
-      setMessage({
-        type: "error",
-        text: err instanceof Error ? err.message : "选择文件失败",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleClearHandle = async () => {
-    setIsLoading(true);
-    setMessage(null);
-    try {
-      await clearStoredFileHandle();
-      setHasStoredHandle(false);
-      setMessage({ type: "success", text: "已清除数据库连接，刷新页面后生效" });
-    } catch (err) {
-      setMessage({
-        type: "error",
-        text: err instanceof Error ? err.message : "清除失败",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSaveNow = async () => {
-    setIsLoading(true);
-    setMessage(null);
-    try {
-      await saveDBToFile();
-      setMessage({ type: "success", text: "数据库已保存" });
-    } catch (err) {
-      setMessage({
-        type: "error",
-        text: err instanceof Error ? err.message : "保存失败",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Provider 管理函数
-  const handleAddProvider = (config: Omit<ProviderConfig, "id">) => {
-    const newProvider: ProviderConfig = {
-      ...config,
-      id: crypto.randomUUID(),
-    };
-    const updated = [...providers, newProvider];
-    saveProviders(updated);
-    setProviders(updated);
-    if (newProvider.is_active) {
-      setActiveProviderId(newProvider.id);
-    }
-  };
-
-  const handleUpdateProvider = (
-    id: string,
-    updates: Partial<ProviderConfig>,
-  ) => {
-    const updated = providers.map((p) =>
-      p.id === id ? { ...p, ...updates } : p,
-    );
-    saveProviders(updated);
-    setProviders(updated);
-  };
-
-  const handleDeleteProvider = (id: string) => {
-    const updated = providers.filter((p) => p.id !== id);
-    saveProviders(updated);
-    setProviders(updated);
-    if (activeProviderId === id) {
-      setActiveProviderId(null);
-    }
-  };
-
-  const handleSetActive = (id: string) => {
-    const updated = providers.map((p) => ({
-      ...p,
-      is_active: p.id === id,
-    }));
-    saveProviders(updated);
-    setProviders(updated);
-    setActiveProviderId(id);
-  };
-
-  const handleFetchModels = async (providerId: string): Promise<string[]> => {
-    const provider = providers.find((p) => p.id === providerId);
-    if (!provider) throw new Error("Provider 不存在");
-
-    const client = createClient(provider);
-    const models = await client.listModels();
-    return models.map((m) => m.id);
-  };
-
-  // 导出 AI 模型配置
-  const handleExportProviders = () => {
-    if (providers.length === 0) {
-      setMessage({ type: "error", text: "没有可导出的配置" });
-      return;
-    }
-
-    const exportData = {
-      version: 1,
-      exportedAt: new Date().toISOString(),
-      providers: providers,
-    };
-
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `ai-providers-${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    setMessage({
-      type: "success",
-      text: `已导出 ${providers.length} 个 Provider 配置`,
-    });
-  };
-
-  // 导入 AI 模型配置
-  const handleImportProviders = () => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".json";
-
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-
-      try {
-        const text = await file.text();
-        const data = JSON.parse(text);
-
-        // 验证格式
-        if (!data.providers || !Array.isArray(data.providers)) {
-          throw new Error("无效的配置文件格式");
-        }
-
-        // 合并或替换
-        const existingIds = new Set(providers.map((p) => p.id));
-        const newProviders: ProviderConfig[] = [];
-
-        for (const p of data.providers) {
-          if (!p.id || !p.name || !p.type) {
-            console.warn("跳过无效配置:", p);
-            continue;
-          }
-
-          if (existingIds.has(p.id)) {
-            // 已存在，询问是否覆盖
-            const existing = providers.find((ep) => ep.id === p.id);
-            if (
-              existing &&
-              confirm(`Provider "${p.name}" 已存在，是否覆盖？`)
-            ) {
-              // 更新现有配置
-              const updated = providers.map((ep) => (ep.id === p.id ? p : ep));
-              saveProviders(updated);
-              setProviders(updated);
-            }
-          } else {
-            // 新配置
-            newProviders.push(p);
-          }
-        }
-
-        // 添加新配置
-        if (newProviders.length > 0) {
-          const updated = [...providers, ...newProviders];
-          saveProviders(updated);
-          setProviders(updated);
-        }
-
-        const active = loadProviders().find((p) => p.is_active);
-        if (active) {
-          setActiveProviderId(active.id);
-        }
-
-        setMessage({ type: "success", text: `成功导入配置` });
-      } catch (err) {
-        setMessage({
-          type: "error",
-          text: err instanceof Error ? err.message : "导入失败",
-        });
-      }
-    };
-
-    input.click();
-  };
-
-  // 错误日志相关处理
-  const handleClearErrorLogs = () => {
-    if (confirm("确定要清除所有错误日志吗？")) {
-      clearLogs();
-      loadErrorLogs();
-      setMessage({ type: "success", text: "错误日志已清除" });
-    }
-  };
-
-  const handleDownloadErrorLogs = () => {
-    downloadLogs();
-    setMessage({ type: "success", text: "错误日志已下载" });
-  };
-
-  const handleRefreshErrorLogs = () => {
-    loadErrorLogs();
+  const handleMessage = (type: "success" | "error", text: string) => {
+    setMessage({ type, text });
+    setTimeout(() => setMessage(null), 3000);
   };
 
   return (
-    <>
-      <Modal isOpen={true} onClose={onClose} title="设置" size="lg">
-        <div class="space-y-4">
-          {message && (
-            <div
-              class={`p-3 rounded-lg text-sm ${
-                message.type === "success"
-                  ? "bg-green-900/30 border border-green-500 text-green-300"
-                  : "bg-red-900/30 border border-red-500 text-red-300"
-              }`}
-            >
-              {message.text}
-            </div>
-          )}
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      title="设置"
+      size="lg"
+    >
+      <div class="space-y-4 max-h-[70vh] overflow-y-auto">
+        {message && (
+          <div class={`p-3 rounded-lg text-sm ${
+            message.type === "success"
+              ? "bg-green-900/30 border border-green-500 text-green-300"
+              : "bg-red-900/30 border border-red-500 text-red-300"
+          }`}>
+            {message.text}
+          </div>
+        )}
 
-          <Card hover={false}>
-            <h3 class="text-lg font-semibold text-white mb-2">
-              🤖 AI 模型设置
-            </h3>
-            <div class="text-gray-300 space-y-2">
-              <p class="text-sm">
-                已添加 {providers.length} 个 Provider
-                {activeProviderId && (
-                  <span class="text-green-400 ml-2">
-                    (当前使用：
-                    {providers.find((p) => p.id === activeProviderId)?.name})
-                  </span>
-                )}
-              </p>
-              <div class="flex flex-wrap gap-2">
-                <Button
-                  onClick={() => setShowAIModelSettings(true)}
-                  variant="secondary"
-                >
-                  ⚙️ 管理
-                </Button>
-                <Button
-                  onClick={handleExportProviders}
-                  variant="secondary"
-                  disabled={providers.length === 0}
-                >
-                  📤 导出配置
-                </Button>
-                <Button onClick={handleImportProviders} variant="secondary">
-                  📥 导入配置
-                </Button>
-              </div>
-            </div>
-          </Card>
-
-          <Card hover={false}>
-            <h3 class="text-lg font-semibold text-white mb-2">📁 数据库设置</h3>
-            <div class="text-gray-300 space-y-2">
-              <p>
-                连接状态：
-                {hasStoredHandle ? (
-                  <span class="text-green-400">✅ 已连接数据库文件</span>
-                ) : isMemory ? (
-                  <span class="text-yellow-400">
-                    ⚠️ 内存模式（数据不会保存）
-                  </span>
-                ) : (
-                  <span class="text-red-400">❌ 未连接数据库文件</span>
-                )}
-              </p>
-
-              <div class="flex flex-wrap gap-2 mt-4">
-                <Button onClick={handleSelectNewFile} isLoading={isLoading}>
-                  📁 选择数据库文件
-                </Button>
-
-                {hasStoredHandle && (
-                  <Button
-                    onClick={handleClearHandle}
-                    variant="danger"
-                    isLoading={isLoading}
-                  >
-                    🗑️ 清除数据库连接
-                  </Button>
-                )}
-
-                {!isMemory && (
-                  <Button
-                    onClick={handleSaveNow}
-                    variant="secondary"
-                    isLoading={isLoading}
-                  >
-                    💾 立即保存
-                  </Button>
-                )}
-              </div>
-            </div>
-          </Card>
-
-          <Card hover={false}>
-            <h3 class="text-lg font-semibold text-white mb-2">📊 数据管理</h3>
-            <div class="text-gray-300 space-y-2">
-              <p class="text-sm">
-                如需清除所有应用数据（包括数据库连接和缓存），请点击下方按钮：
-              </p>
-              <Button
-                onClick={async () => {
-                  if (
-                    confirm(
-                      "确定要清除所有数据吗？这将删除数据库连接和所有缓存，应用将恢复到初始状态。",
-                    )
-                  ) {
-                    await clearStoredFileHandle();
-                    localStorage.clear();
-                    if ("caches" in window) {
-                      const names = await caches.keys();
-                      await Promise.all(names.map((n) => caches.delete(n)));
-                    }
-                    alert("数据已清除，正在刷新页面...");
-                    location.reload();
-                  }
-                }}
-                variant="danger"
-                class="w-full sm:w-auto"
-              >
-                🗑️ 清除所有应用数据
-              </Button>
-            </div>
-          </Card>
-
-          <Card hover={false}>
-            <h3 class="text-lg font-semibold text-white mb-2">🐛 错误日志</h3>
-            <div class="text-gray-300 space-y-2">
-              <div class="flex items-center justify-between">
-                <p class="text-sm">
-                  {errorLogsStats ? (
-                    <>
-                      共{" "}
-                      <span class="text-white font-medium">
-                        {errorLogsStats.total}
-                      </span>{" "}
-                      条日志
-                      {errorLogsStats.byType.error > 0 && (
-                        <span class="text-red-400 ml-2">
-                          错误：{errorLogsStats.byType.error}
-                        </span>
-                      )}
-                      {errorLogsStats.byType.warn > 0 && (
-                        <span class="text-yellow-400 ml-2">
-                          警告：{errorLogsStats.byType.warn}
-                        </span>
-                      )}
-                    </>
-                  ) : (
-                    "加载中..."
-                  )}
-                </p>
-                <div class="flex gap-2">
-                  <Button
-                    onClick={() => {
-                      setShowErrorLogs(true);
-                      loadErrorLogs();
-                    }}
-                    variant="secondary"
-                    size="sm"
-                  >
-                    📋 查看日志
-                  </Button>
-                  <Button
-                    onClick={handleDownloadErrorLogs}
-                    variant="secondary"
-                    size="sm"
-                    disabled={!errorLogsStats || errorLogsStats.total === 0}
-                  >
-                    📥 导出日志
-                  </Button>
-                  <Button
-                    onClick={handleClearErrorLogs}
-                    variant="danger"
-                    size="sm"
-                    disabled={!errorLogsStats || errorLogsStats.total === 0}
-                  >
-                    🗑️ 清除
-                  </Button>
-                </div>
-              </div>
-              <p class="text-xs text-gray-500">
-                💡 错误日志会保存在本地，用于移动端调试。建议定期清理。
-              </p>
-            </div>
-          </Card>
-
-          <Card hover={false}>
-            <h3 class="text-lg font-semibold text-white mb-2">ℹ️ 关于</h3>
-            <div class="text-gray-300 text-sm space-y-1">
-              <p>AI 剧本房 v0.0.1</p>
-              <p>使用 Preact + Vite + TailwindCSS 构建</p>
-              <p class="text-gray-500 mt-2">数据存储在本地，不会上传到服务器</p>
-            </div>
-          </Card>
-        </div>
-      </Modal>
-
-      {showAIModelSettings && (
-        <AIModelSettings
-          onClose={() => setShowAIModelSettings(false)}
+        <AIModelSettingsSection
           providers={providers}
           activeProviderId={activeProviderId}
-          onAddProvider={handleAddProvider}
-          onUpdateProvider={handleUpdateProvider}
-          onDeleteProvider={handleDeleteProvider}
-          onSetActive={handleSetActive}
-          onFetchModels={handleFetchModels}
+          onProvidersChange={setProviders}
+          onActiveProviderChange={setActiveProviderId}
+          onMessage={handleMessage}
         />
-      )}
 
-      {/* 错误日志查看器 */}
-      {showErrorLogs && (
-        <Modal
-          isOpen={showErrorLogs}
-          onClose={() => setShowErrorLogs(false)}
-          title="🐛 错误日志"
-          size="xl"
-          footer={
-            <div class="flex justify-between w-full">
-              <Button onClick={handleRefreshErrorLogs} variant="secondary">
-                🔄 刷新
-              </Button>
-              <div class="flex gap-2">
-                <Button onClick={handleDownloadErrorLogs} variant="secondary">
-                  📥 导出
-                </Button>
-                <Button onClick={handleClearErrorLogs} variant="danger">
-                  🗑️ 清除
-                </Button>
-                <Button onClick={() => setShowErrorLogs(false)}>关闭</Button>
-              </div>
-            </div>
-          }
-        >
-          <div class="space-y-2">
-            {errorLogs.length === 0 ? (
-              <div class="text-center py-8 text-gray-400">
-                <div class="text-4xl mb-2">✨</div>
-                <p>暂无错误日志</p>
-              </div>
-            ) : (
-              errorLogs.map((log) => (
-                <div
-                  key={log.id}
-                  class={`p-3 rounded-lg border ${
-                    log.type === "error"
-                      ? "bg-red-900/20 border-red-500/30"
-                      : log.type === "warn"
-                        ? "bg-yellow-900/20 border-yellow-500/30"
-                        : "bg-blue-900/20 border-blue-500/30"
-                  }`}
-                >
-                  <div class="flex items-start justify-between gap-2">
-                    <div class="flex-1">
-                      <div class="flex items-center gap-2 mb-1">
-                        <span class="text-lg">
-                          {log.type === "error"
-                            ? "❌"
-                            : log.type === "warn"
-                              ? "⚠️"
-                              : "ℹ️"}
-                        </span>
-                        <span
-                          class={`text-xs font-medium px-2 py-0.5 rounded ${
-                            log.type === "error"
-                              ? "bg-red-500/30 text-red-300"
-                              : log.type === "warn"
-                                ? "bg-yellow-500/30 text-yellow-300"
-                                : "bg-blue-500/30 text-blue-300"
-                          }`}
-                        >
-                          {log.type}
-                        </span>
-                        <span class="text-xs text-gray-500">
-                          [{log.source}]
-                        </span>
-                        <span class="text-xs text-gray-500 ml-auto">
-                          {new Date(log.timestamp).toLocaleString("zh-CN")}
-                        </span>
-                      </div>
-                      <div class="text-sm text-gray-200 break-all">
-                        {log.message}
-                      </div>
-                      {log.stack && (
-                        <details class="mt-2">
-                          <summary class="text-xs text-gray-400 cursor-pointer hover:text-gray-300">
-                            查看堆栈详情
-                          </summary>
-                          <pre class="mt-1 text-xs text-gray-400 bg-black/30 rounded p-2 overflow-x-auto whitespace-pre-wrap">
-                            {log.stack}
-                          </pre>
-                        </details>
-                      )}
-                      {log.userAgent && (
-                        <div class="mt-2 text-xs text-gray-500">
-                          🌐 {log.userAgent}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </Modal>
-      )}
-    </>
+        <DatabaseSettingsSection
+          onMessage={handleMessage}
+        />
+
+        <ErrorLogsSection
+          onMessage={handleMessage}
+        />
+
+        <AboutSection />
+      </div>
+    </Modal>
   );
 };
-
