@@ -84,6 +84,9 @@ export default defineConfig({
     minify: "esbuild",
     sourcemap: false,
   },
+  optimizeDeps: {
+    include: ["sql.js"],
+  },
   define: {
     global: "globalThis",
   },

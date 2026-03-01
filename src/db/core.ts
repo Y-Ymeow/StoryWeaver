@@ -45,9 +45,9 @@ async function loadSqlJs() {
  * 获取 wasm 文件的正确路径
  */
 function getWasmPath(): string {
-  // 获取当前页面的 base URL（处理 GitHub Pages 子路径）
-  const base = import.meta.env.BASE_URL || "/";
-  return `${base}sql-wasm.wasm`;
+  // 使用 Vite 的 URL 导入获取正确的 WASM 文件路径
+  const wasmUrl = new URL("sql.js/dist/sql-wasm.wasm", import.meta.url);
+  return wasmUrl.href;
 }
 
 /**

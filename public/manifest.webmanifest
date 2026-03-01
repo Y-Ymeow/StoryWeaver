@@ -7,8 +7,8 @@
   "display": "standalone",
   "orientation": "portrait",
   "version": "1.1.0",
-  "scope": "/",
-  "start_url": "/",
+  "scope": "/StoryWeaver/",
+  "start_url": "/StoryWeaver/",
   "icons": [
     {
       "src": "pwa-192x192.png",

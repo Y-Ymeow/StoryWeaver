@@ -96,7 +96,7 @@ export const DatabaseSelector: FunctionalComponent<DatabaseSelectorProps> = ({
         // 如果是新数据库，先初始化（写入空数据库）
         if (isNew) {
           const initSqlJs = (await import('sql.js')).default;
-          const wasmPath = '/sql-wasm.wasm';
+          const wasmPath = new URL('sql.js/dist/sql-wasm.wasm', import.meta.url).href;
           const SQL = await initSqlJs({ locateFile: () => wasmPath });
           const db = new SQL.Database();
           const data = db.export();
