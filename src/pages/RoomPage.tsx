@@ -1,7 +1,7 @@
 import { FunctionalComponent } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { LoadingScreen } from "@components/ui/common/LoadingScreen";
-import { RoomDetailPage } from "@components/pages/RoomDetailPage";
+import { RoomDetailPage } from "@/pages/RoomDetailPage";
 import { useRoomActions } from "@/stores";
 import { getRoomById } from "@/db";
 import type { Room } from "@/stores";
@@ -78,3 +78,4 @@ export const RoomPage: FunctionalComponent<RoomPageProps> = ({ id }) => {
 
   return <RoomDetailPage room={room} onBack={handleBack} />;
 };
+

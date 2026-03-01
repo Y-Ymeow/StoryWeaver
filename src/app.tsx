@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "preact/hooks";
 import { Provider as StoreProvider } from "@stores";
 import { initDB, type InitDBOptions } from "@db";
-import { HomePage, RoomPage } from "@components/pages";
+import { HomePage, RoomPage } from "@pages";
 import { LoadingScreen } from "@components/ui/common/LoadingScreen";
 import { ErrorBoundary } from "@components/ui/common/ErrorBoundary";
 import { DatabaseSelector } from "@components/ui/common/DatabaseSelector";
