@@ -4,7 +4,7 @@ import { Button, Modal, Input, TextArea, Card } from "@components/ui/common";
 import { createCharacter, updateCharacter, getCharactersByRoomId } from "@/db";
 import type { Character, Room } from "@/stores";
 import { AIInputConfig } from "@components/ui/common";
-import { loadProviders } from "@/lib/openai/providers";
+import { useProviders } from "@/hooks";
 
 interface CharacterManagerProps {
   isOpen: boolean;
@@ -25,8 +25,6 @@ export const CharacterManager: FunctionalComponent<CharacterManagerProps> = ({
   const [isAdding, setIsAdding] = useState(false);
   const [editingChar, setEditingChar] = useState<Character | null>(null);
   const [isAIInputOpen, setIsAIInputOpen] = useState(false);
-  const [providers, setProviders] = useState<any[]>([]);
-  const [activeProviderId, setActiveProviderId] = useState<string | null>(null);
   const [viewingMemory, setViewingMemory] = useState<Character | null>(null);
   const [memoryInput, setMemoryInput] = useState("");
   const [isUpdatingMemory, setIsUpdatingMemory] = useState(false);
@@ -37,25 +35,17 @@ export const CharacterManager: FunctionalComponent<CharacterManagerProps> = ({
   const [dialogueStyle, setDialogueStyle] = useState("");
   const [isUser, setIsUser] = useState(false);
 
+  const { providers, selectedProviderId } = useProviders();
+
   useEffect(() => {
     if (isOpen) {
       loadCharacters();
-      loadProvidersData();
     }
   }, [isOpen, roomId]);
 
   const loadCharacters = async () => {
     const loaded = await getCharactersByRoomId(roomId);
     setCharacters(loaded);
-  };
-
-  const loadProvidersData = async () => {
-    const loadedProviders = await loadProviders();
-    setProviders(loadedProviders);
-    const active = loadedProviders.find((p: any) => p.is_active);
-    if (active) {
-      setActiveProviderId(active.id);
-    }
   };
 
   const resetForm = () => {
@@ -388,7 +378,7 @@ export const CharacterManager: FunctionalComponent<CharacterManagerProps> = ({
         onClose={() => setIsAIInputOpen(false)}
         onGenerate={handleAIResult}
         providers={providers}
-        activeProviderId={activeProviderId}
+        activeProviderId={selectedProviderId}
         mode="character"
         roomContext={roomContext}
         characters={characters.map((c) => ({

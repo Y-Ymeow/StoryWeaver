@@ -57,6 +57,8 @@ interface RoundPlanModalProps {
   enableThinking: boolean;
   thinkingBudget: number;
   isGenerating: boolean;
+  streamingContent?: string;
+  thinkingContent?: string;
   onProviderChange: (config: {
     providerId: string | null;
     model: string;
@@ -84,6 +86,8 @@ export const RoundPlanModal: FunctionalComponent<RoundPlanModalProps> = ({
   enableThinking,
   thinkingBudget,
   isGenerating,
+  streamingContent = "",
+  thinkingContent = "",
   onProviderChange,
   onGenerate,
 }) => {
@@ -204,6 +208,7 @@ export const RoundPlanModal: FunctionalComponent<RoundPlanModalProps> = ({
       return;
     }
 
+    // 传递生成轮数
     await onGenerate({
       sceneCharacters,
       keywords,
@@ -402,6 +407,25 @@ export const RoundPlanModal: FunctionalComponent<RoundPlanModalProps> = ({
               - {selectedModel || "未选择"}
             </span>
           </div>
+
+          {(isGenerating || streamingContent || thinkingContent) && (
+            <div class="mt-3 space-y-2">
+              {thinkingContent && enableThinking && (
+                <div class="rounded-lg border border-purple-500/30 bg-purple-900/20 p-3">
+                  <div class="text-xs text-purple-300 mb-1">🧠 思考中...</div>
+                  <div class="text-xs text-purple-200/80 whitespace-pre-wrap max-h-28 overflow-y-auto font-mono">
+                    {thinkingContent}
+                  </div>
+                </div>
+              )}
+              <div class="rounded-lg border border-dark-accent bg-dark-accent/30 p-3">
+                <div class="text-xs text-gray-400 mb-1">✨ 流式输出</div>
+                <div class="text-sm text-gray-200 whitespace-pre-wrap max-h-40 overflow-y-auto">
+                  {streamingContent || "正在生成轮次..."}
+                </div>
+              </div>
+            </div>
+          )}
         </Card>
 
         {/* 轮次列表 */}

@@ -1,5 +1,5 @@
 import { FunctionalComponent } from "preact";
-import { useState } from "preact/hooks";
+import { useState, useEffect } from "preact/hooks";
 import { Button, Modal, TextArea, ModelButton } from "@components/ui/common";
 import type { Scene, Room, Character } from "@/stores";
 import type { ProviderConfig } from "@/stores/types";
@@ -17,6 +17,8 @@ interface AIGenerateModalProps {
   enableThinking: boolean;
   thinkingBudget: number;
   isGenerating: boolean;
+  streamingContent?: string;
+  thinkingContent?: string;
   onProviderChange: (config: {
     providerId: string | null;
     model: string;
@@ -27,6 +29,7 @@ interface AIGenerateModalProps {
   onGenerate: (params: {
     prompt: string;
     selectedSceneSummaries: string[];
+    selectedCharacterIds: string[];
   }) => Promise<void>;
 }
 
@@ -34,6 +37,7 @@ export const AIGenerateModal: FunctionalComponent<AIGenerateModalProps> = ({
   isOpen,
   onClose,
   existingScenes,
+  characters,
   providers,
   selectedProviderId,
   selectedModel,
@@ -41,20 +45,35 @@ export const AIGenerateModal: FunctionalComponent<AIGenerateModalProps> = ({
   enableThinking,
   thinkingBudget,
   isGenerating,
+  streamingContent = "",
+  thinkingContent = "",
   onProviderChange,
   onGenerate,
 }) => {
   const [aiPrompt, setAiPrompt] = useState("");
   const [selectedSceneSummaries, setSelectedSceneSummaries] = useState<string[]>([]);
+  const [selectedCharacterIds, setSelectedCharacterIds] = useState<string[]>(
+    characters.map((c) => c.id),
+  );
+
+  const scenesWithSummary = existingScenes.filter((s) => s.summary);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setSelectedCharacterIds(characters.map((c) => c.id));
+    setSelectedSceneSummaries(scenesWithSummary.map((s) => s.id));
+  }, [isOpen, characters, existingScenes]);
 
   const handleGenerate = async () => {
     await onGenerate({
       prompt: aiPrompt,
       selectedSceneSummaries,
+      selectedCharacterIds,
     });
     // Reset and close on success
     setAiPrompt("");
     setSelectedSceneSummaries([]);
+    setSelectedCharacterIds(characters.map((c) => c.id));
     onClose();
   };
 
@@ -62,10 +81,9 @@ export const AIGenerateModal: FunctionalComponent<AIGenerateModalProps> = ({
     if (isGenerating) return;
     setAiPrompt("");
     setSelectedSceneSummaries([]);
+    setSelectedCharacterIds(characters.map((c) => c.id));
     onClose();
   };
-
-  const scenesWithSummary = existingScenes.filter((s) => s.summary);
 
   return (
     <Modal
@@ -107,6 +125,35 @@ export const AIGenerateModal: FunctionalComponent<AIGenerateModalProps> = ({
           />
         </div>
 
+        {characters.length > 0 && (
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">
+              👥 选择参考角色（可选）
+            </label>
+            <div class="flex flex-wrap gap-2">
+              {characters.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() =>
+                    setSelectedCharacterIds((prev) =>
+                      prev.includes(c.id)
+                        ? prev.filter((id) => id !== c.id)
+                        : [...prev, c.id],
+                    )
+                  }
+                  class={`px-3 py-1 rounded text-sm transition-colors ${
+                    selectedCharacterIds.includes(c.id)
+                      ? "bg-primary-600 text-white"
+                      : "bg-dark-surface text-gray-300 hover:bg-dark-accent"
+                  }`}
+                >
+                  {c.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* 选择已有场景摘要作为上下文 */}
         {scenesWithSummary.length > 0 && (
           <div>
@@ -140,6 +187,25 @@ export const AIGenerateModal: FunctionalComponent<AIGenerateModalProps> = ({
           </div>
         )}
 
+        {(isGenerating || streamingContent || thinkingContent) && (
+          <div class="space-y-2">
+            {thinkingContent && enableThinking && (
+              <div class="rounded-lg border border-purple-500/30 bg-purple-900/20 p-3">
+                <div class="text-xs text-purple-300 mb-1">🧠 思考中...</div>
+                <div class="text-xs text-purple-200/80 whitespace-pre-wrap max-h-28 overflow-y-auto font-mono">
+                  {thinkingContent}
+                </div>
+              </div>
+            )}
+            <div class="rounded-lg border border-dark-accent bg-dark-accent/30 p-3">
+              <div class="text-xs text-gray-400 mb-1">✨ 流式输出</div>
+              <div class="text-sm text-gray-200 whitespace-pre-wrap max-h-40 overflow-y-auto">
+                {streamingContent || "正在生成..."}
+              </div>
+            </div>
+          </div>
+        )}
+
         <div class="flex justify-end gap-3 pt-4 border-t border-dark-accent">
           <Button onClick={handleClose} variant="secondary" disabled={isGenerating}>
             取消
@@ -148,7 +214,7 @@ export const AIGenerateModal: FunctionalComponent<AIGenerateModalProps> = ({
             onClick={handleGenerate}
             isLoading={isGenerating}
             disabled={
-              !selectedProviderId || !selectedModel || !aiPrompt.trim()
+              !selectedProviderId || !selectedModel || !aiPrompt.trim() || selectedCharacterIds.length === 0
             }
           >
             {isGenerating ? "生成中..." : "✨ 生成"}

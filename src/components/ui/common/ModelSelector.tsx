@@ -26,6 +26,28 @@ export const ModelSelector: FunctionalComponent<ModelSelectorProps> = ({
 
   const selectedProvider = providers.find((p) => p.id === selectedProviderId);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const fallbackProviderId =
+      initialProviderId && providers.some((p) => p.id === initialProviderId)
+        ? initialProviderId
+        : providers[0]?.id || null;
+    setSelectedProviderId(fallbackProviderId);
+
+    const provider = providers.find((p) => p.id === fallbackProviderId);
+    if (!provider) {
+      setSelectedModel("");
+      setIsThinkingModel(false);
+      setEnableThinking(false);
+      return;
+    }
+
+    const fallbackModel = initialModel || provider.custom_models?.[0] || provider.model || "";
+    setSelectedModel(fallbackModel);
+    setIsThinkingModel(provider.supports_thinking || false);
+    setEnableThinking(false);
+  }, [isOpen, initialProviderId, initialModel, providers]);
+
   // 初始化时加载 Provider 的默认模型
   useEffect(() => {
     if (selectedProvider && !selectedModel) {
@@ -33,20 +55,16 @@ export const ModelSelector: FunctionalComponent<ModelSelectorProps> = ({
         selectedProvider.custom_models?.[0] || selectedProvider.model;
       if (model) setSelectedModel(model);
     }
-  }, [selectedProviderId]);
+  }, [selectedProviderId, selectedProvider, selectedModel]);
 
   // 初始化时加载 Provider 的思考模式设置
   useEffect(() => {
     if (selectedProvider) {
       setIsThinkingModel(selectedProvider.supports_thinking || false);
-      setEnableThinking(
-        selectedProvider.supports_thinking &&
-          selectedProvider.thinking_param_key
-          ? true
-          : false,
-      );
+      // 默认不启用思考，让用户自己选择
+      setEnableThinking(false);
     }
-  }, [selectedProviderId]);
+  }, [selectedProviderId, selectedProvider]);
 
   const handleConfirm = () => {
     if (!selectedProviderId || !selectedModel) return;

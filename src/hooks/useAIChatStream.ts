@@ -11,6 +11,7 @@ export interface AIThinkingConfig {
   param_key?: string;
   type?: "boolean" | "object";
   default?: unknown;
+  disabled?: unknown;
   budget_tokens?: number;
 }
 
@@ -19,6 +20,7 @@ export interface AIChatStreamOptions {
   max_tokens?: number;
   model?: string;
   thinking?: AIThinkingConfig;
+  reasoning_effort?: "low" | "medium" | "high";
 }
 
 export interface AIChatStreamResult {
@@ -46,6 +48,7 @@ export function useAIChatStream() {
         max_tokens: options.max_tokens ?? 2048,
         model: options.model,
         thinking: options.thinking,
+        reasoning_effort: options.reasoning_effort,
       });
 
       let fullContent = "";
@@ -59,11 +62,11 @@ export function useAIChatStream() {
         }
 
         // 检测思考标签
-        if (chunk.includes("<think>") || chunk.includes("起")) {
+        if (chunk.includes("<think>")) {
           inThinking = true;
           continue;
         }
-        if (chunk.includes("</think>") || chunk.includes("终")) {
+        if (chunk.includes("</think>")) {
           inThinking = false;
           continue;
         }

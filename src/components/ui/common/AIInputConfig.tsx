@@ -8,37 +8,12 @@ import {
   Card,
   ModelButton,
 } from "@components/ui/common";
-import type { ProviderConfig } from "@stores/types";
+import type { AIInputConfigProps, AIInputMode } from "@/types/ai-input";
+import {
+  buildAIInputPrompt,
+  getSystemPrompt,
+} from "@/lib/prompts/ai-input";
 import { createClient } from "@/lib/openai/client";
-
-interface AIInputConfigProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onGenerate: (result: {
-    content: string;
-    providerId: string;
-    model: string;
-    thinkingEnabled: boolean;
-  }) => void;
-  providers: ProviderConfig[];
-  activeProviderId?: string | null;
-  presetPrompt?: string;
-  presetKeywords?: string;
-  mode?: "room" | "character" | "scene" | "custom";
-  roomContext?: {
-    name?: string;
-    setting?: string;
-    plot_summary?: string;
-    worldview?: string;
-  };
-  characters?: Array<{
-    name: string;
-    background: string;
-    dialogue_style: string;
-  }>;
-  scenes?: Array<{ name: string; description: string; goal: string }>;
-  isLoading?: boolean;
-}
 
 export const AIInputConfig: FunctionalComponent<AIInputConfigProps> = ({
   isOpen,
@@ -60,7 +35,7 @@ export const AIInputConfig: FunctionalComponent<AIInputConfigProps> = ({
   const [prompt, setPrompt] = useState(presetPrompt);
   const [keywords, setKeywords] = useState(presetKeywords);
   const [isThinkingModel, setIsThinkingModel] = useState(false);
-  const [enableThinking, setEnableThinking] = useState(true);
+  const [enableThinking, setEnableThinking] = useState(false);
   const [thinkingBudget, setThinkingBudget] = useState(1024);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,13 +43,16 @@ export const AIInputConfig: FunctionalComponent<AIInputConfigProps> = ({
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
   const [thinkingContent, setThinkingContent] = useState("");
+  const [generationCount, setGenerationCount] = useState(3);
+  const [selectedCharacterNames, setSelectedCharacterNames] = useState<string[]>([]);
+  const [selectedSceneNames, setSelectedSceneNames] = useState<string[]>([]);
   const resultEndRef = useRef<HTMLDivElement>(null);
+  const wasOpenRef = useRef(false);
 
   const selectedProvider = providers.find((p) => p.id === selectedProviderId);
 
-  // 每次打开时清空表单
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !wasOpenRef.current) {
       setPrompt(presetPrompt);
       setKeywords(presetKeywords);
       setResult("");
@@ -83,8 +61,27 @@ export const AIInputConfig: FunctionalComponent<AIInputConfigProps> = ({
       setError(null);
       setIsStreaming(false);
       setIsGenerating(false);
+      setGenerationCount(mode === "character" || mode === "scene" ? 3 : 1);
+      setSelectedCharacterNames(characters.map((c) => c.name));
+      setSelectedSceneNames(scenes.map((s) => s.name));
     }
-  }, [isOpen]);
+    wasOpenRef.current = isOpen;
+  }, [isOpen, presetPrompt, presetKeywords, mode]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const fallbackProviderId =
+      activeProviderId ||
+      providers.find((p) => p.is_active)?.id ||
+      providers[0]?.id ||
+      null;
+    const hasSelectedProvider = selectedProviderId
+      ? providers.some((p) => p.id === selectedProviderId)
+      : false;
+    if ((!selectedProviderId || !hasSelectedProvider) && fallbackProviderId) {
+      setSelectedProviderId(fallbackProviderId);
+    }
+  }, [isOpen, providers, activeProviderId, selectedProviderId]);
 
   useEffect(() => {
     if (selectedProvider) {
@@ -97,7 +94,6 @@ export const AIInputConfig: FunctionalComponent<AIInputConfigProps> = ({
     }
   }, [selectedProviderId]);
 
-  // 滚动到结果底部
   useEffect(() => {
     if (isStreaming && resultEndRef.current) {
       resultEndRef.current.scrollIntoView({ behavior: "smooth" });
@@ -119,16 +115,23 @@ export const AIInputConfig: FunctionalComponent<AIInputConfigProps> = ({
       const systemPrompt = getSystemPrompt(
         mode,
         roomContext,
-        characters,
-        scenes,
+        selectedCharacterNames.length > 0
+          ? characters.filter((c) => selectedCharacterNames.includes(c.name))
+          : [],
+        selectedSceneNames.length > 0
+          ? scenes.filter((s) => selectedSceneNames.includes(s.name))
+          : [],
       );
       const messages = [
         { role: "system", content: systemPrompt },
-        { role: "user", content: buildPrompt(prompt, keywords) },
+        {
+          role: "user",
+          content: buildAIInputPrompt(prompt, keywords, mode, generationCount),
+        },
       ];
 
       const thinking =
-        isThinkingModel && enableThinking && selectedProvider.supports_thinking
+        selectedProvider.supports_thinking && enableThinking
           ? {
               enabled: true,
               param_key: selectedProvider.thinking_param_key,
@@ -136,13 +139,18 @@ export const AIInputConfig: FunctionalComponent<AIInputConfigProps> = ({
               default: selectedProvider.thinking_param_default,
               budget_tokens: thinkingBudget,
             }
-          : undefined;
+          : {
+              enabled: false,
+              param_key: selectedProvider.thinking_param_key,
+              type: selectedProvider.thinking_param_type,
+              disabled: selectedProvider.thinking_param_disabled,
+            };
 
-      // 使用流式响应
       const stream = client.chatStream(messages, {
         temperature: 0.7,
         max_tokens: 4096,
         thinking,
+        reasoning_effort: selectedProvider.reasoning_effort,
         model: selectedModel || undefined,
       });
 
@@ -150,12 +158,11 @@ export const AIInputConfig: FunctionalComponent<AIInputConfigProps> = ({
       let inThinking = false;
 
       for await (const chunk of stream) {
-        // 检测思考内容标记（不同模型可能不同）
-        if (chunk.includes("<think>") || chunk.includes("<think>")) {
+        if (chunk.includes("<think>")) {
           inThinking = true;
           continue;
         }
-        if (chunk.includes("</think>") || chunk.includes("</think>")) {
+        if (chunk.includes("</think>")) {
           inThinking = false;
           continue;
         }
@@ -270,6 +277,85 @@ export const AIInputConfig: FunctionalComponent<AIInputConfigProps> = ({
           />
         </div>
 
+        {(mode === "character" || mode === "scene") && (
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">
+              📦 批量生成数量
+            </label>
+            <Input
+              type="number"
+              value={String(generationCount)}
+              onInput={(e) =>
+                setGenerationCount(
+                  Math.max(
+                    1,
+                    Math.min(10, parseInt((e.target as HTMLInputElement).value) || 1),
+                  ),
+                )
+              }
+              placeholder="1-10"
+            />
+          </div>
+        )}
+
+        {mode === "scene" && characters.length > 0 && (
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">
+              👥 参考角色（可选）
+            </label>
+            <div class="flex flex-wrap gap-2">
+              {characters.map((c) => (
+                <button
+                  key={c.name}
+                  onClick={() =>
+                    setSelectedCharacterNames((prev) =>
+                      prev.includes(c.name)
+                        ? prev.filter((n) => n !== c.name)
+                        : [...prev, c.name],
+                    )
+                  }
+                  class={`px-3 py-1 rounded text-sm transition-colors ${
+                    selectedCharacterNames.includes(c.name)
+                      ? "bg-primary-600 text-white"
+                      : "bg-dark-surface text-gray-300 hover:bg-dark-accent"
+                  }`}
+                >
+                  {c.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {(mode === "character" || mode === "scene") && scenes.length > 0 && (
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">
+              📝 参考场景摘要（可选）
+            </label>
+            <div class="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
+              {scenes.map((s) => (
+                <button
+                  key={s.name}
+                  onClick={() =>
+                    setSelectedSceneNames((prev) =>
+                      prev.includes(s.name)
+                        ? prev.filter((n) => n !== s.name)
+                        : [...prev, s.name],
+                    )
+                  }
+                  class={`px-3 py-1 rounded text-sm transition-colors ${
+                    selectedSceneNames.includes(s.name)
+                      ? "bg-primary-600 text-white"
+                      : "bg-dark-surface text-gray-300 hover:bg-dark-accent"
+                  }`}
+                >
+                  {s.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* 流式生成中的思考内容 */}
         {(thinkingContent || isStreaming) &&
           isThinkingModel &&
@@ -338,102 +424,3 @@ export const AIInputConfig: FunctionalComponent<AIInputConfigProps> = ({
     </Modal>
   );
 };
-
-function buildPrompt(prompt: string, keywords: string): string {
-  let result = prompt;
-  if (keywords) result += `\n\n关键词：${keywords}`;
-  return result;
-}
-
-function getSystemPrompt(
-  mode: string,
-  roomContext?: any,
-  characters?: any[],
-  scenes?: any[],
-): string {
-  const contextInfo = roomContext
-    ? `
-【故事背景】
-- 名称：${roomContext.name || "未设置"}
-- 设定：${roomContext.setting || "未设置"}
-- 剧情大纲：${roomContext.plot_summary || "未设置"}
-- 世界观：${roomContext.worldview || "未设置"}
-`
-    : "";
-
-  const charactersInfo =
-    characters && characters.length > 0
-      ? `
-【已创建的角色】
-${characters
-  .map(
-    (c: any, i: number) =>
-      `${i + 1}. ${c.name} - ${c.background || "无背景"} (${c.dialogue_style || "普通"}风格)`,
-  )
-  .join("\n")}
-`
-      : "";
-
-  const scenesInfo =
-    scenes && scenes.length > 0
-      ? `
-【已创建的场景】
-${scenes
-  .map(
-    (s: any, i: number) => `${i + 1}. ${s.name} - ${s.description || "无描述"}`,
-  )
-  .join("\n")}
-`
-      : "";
-
-  switch (mode) {
-    case "room":
-      return `你是一个专业的互动剧本创作助手。请根据用户描述生成一个完整的剧本房间设定。
-
-请返回严格的 JSON 格式：
-{
-  "name": "剧本名称",
-  "setting": "基本设定（200 字以内，描述故事背景）",
-  "plot_summary": "剧情大纲（300 字以内，描述主要剧情发展）",
-  "worldview": "世界观设定（故事发生的世界背景）",
-  "tone": "基调（如：轻松、悬疑、悲伤等）"
-}
-
-只返回 JSON，不要有其他内容。`;
-    case "character":
-      return `你是一个专业的互动剧本角色设计师。请根据用户描述和故事背景生成 1-3 个剧本角色。
-${contextInfo}${charactersInfo}
-请返回严格的 JSON 格式：
-{
-  "characters": [
-    {
-      "name": "角色名称",
-      "background": "角色背景（100 字以内，需要与故事背景相关联）",
-      "dialogue_style": "台词风格（如：古风、现代、幽默等）",
-      "is_user": false
-    }
-  ]
-}
-
-只返回 JSON，不要有其他内容。`;
-    case "scene":
-      return `你是一个专业的互动剧本场景设计师。请根据用户描述和故事背景生成 1-3 个剧本场景。
-${contextInfo}${scenesInfo}
-请返回严格的 JSON 格式：
-{
-  "scenes": [
-    {
-      "name": "场景名称",
-      "description": "场景描述（100 字以内）",
-      "goal": "场景目标（需要完成的剧情任务）",
-      "setup": "场景布置（道具、特殊元素等）",
-      "max_rounds": 10
-    }
-  ]
-}
-
-只返回 JSON，不要有其他内容。`;
-    default:
-      return "你是一个有用的 AI 助手。";
-  }
-}

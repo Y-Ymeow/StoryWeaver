@@ -73,6 +73,10 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
   const [isAIInputOpen, setIsAIInputOpen] = useState(false);
   const [isRoundPlanOpen, setIsRoundPlanOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [sceneStreamingContent, setSceneStreamingContent] = useState("");
+  const [sceneThinkingContent, setSceneThinkingContent] = useState("");
+  const [roundStreamingContent, setRoundStreamingContent] = useState("");
+  const [roundThinkingContent, setRoundThinkingContent] = useState("");
 
   // 轮次计划
   const [roundPlans, setRoundPlans] = useState<RoundPlan[]>([]);
@@ -122,6 +126,10 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
   useEffect(() => {
     if (!isOpen) {
       resetForm();
+      setSceneStreamingContent("");
+      setSceneThinkingContent("");
+      setRoundStreamingContent("");
+      setRoundThinkingContent("");
     }
   }, [isOpen]);
 
@@ -139,6 +147,7 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
   const handleGenerateScene = async (params: {
     prompt: string;
     selectedSceneSummaries: string[];
+    selectedCharacterIds: string[];
   }) => {
     if (!selectedProviderId || !selectedModel) {
       alert("请先选择 Provider 和模型");
@@ -152,14 +161,30 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
     }
 
     try {
+      setSceneStreamingContent("");
+      setSceneThinkingContent("");
+
       // 构建选中的场景摘要
       const sceneSummaries = existingScenes
-        .filter((s) => params.selectedSceneSummaries.includes(s.id) && s.summary)
+        .filter(
+          (s) =>
+            s.summary &&
+            (params.selectedSceneSummaries.length === 0 ||
+              params.selectedSceneSummaries.includes(s.id)),
+        )
         .map((s) => ({ name: s.name, summary: s.summary! }));
+
+      const selectedCharacters = characters.filter((c) =>
+        params.selectedCharacterIds.includes(c.id),
+      );
+      if (selectedCharacters.length === 0) {
+        alert("请至少选择一个参考角色");
+        return;
+      }
 
       const prompt = buildScenePrompt(
         roomContext,
-        characters,
+        selectedCharacters,
         params.prompt,
         sceneSummaries,
       );
@@ -170,15 +195,20 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
       ];
 
       const thinking =
-        isThinkingModel && provider.supports_thinking
+        provider.supports_thinking && enableThinking
           ? {
-              enabled: enableThinking,
+              enabled: true,
               param_key: provider.thinking_param_key || "thinking",
               type: provider.thinking_param_type || "boolean",
               default: provider.thinking_param_default,
               budget_tokens: thinkingBudget,
             }
-          : undefined;
+          : {
+              enabled: false,
+              param_key: provider.thinking_param_key || "thinking",
+              type: provider.thinking_param_type || "boolean",
+              disabled: provider.thinking_param_disabled,
+            };
 
       const data = await generate<{
         scenes: Array<{
@@ -192,15 +222,40 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
         temperature: 0.7,
         max_tokens: 2048,
         thinking,
+        reasoning_effort: provider.reasoning_effort,
+        onStream: (content, thinkingContent) => {
+          setSceneStreamingContent(content);
+          setSceneThinkingContent(thinkingContent);
+        },
       });
 
       if (data.scenes && Array.isArray(data.scenes) && data.scenes.length > 0) {
-        const scene = data.scenes[0];
-        setName(scene.name || "");
-        setDescription(scene.description || "");
-        setGoal(scene.goal || "");
-        setSetup(scene.setup || "");
-        setMaxRounds(scene.max_rounds || 10);
+        if (!editingScene && data.scenes.length > 1) {
+          for (const generatedScene of data.scenes) {
+            if (!generatedScene?.name?.trim()) continue;
+            await createScene({
+              room_id: roomId,
+              name: generatedScene.name,
+              description: generatedScene.description || "",
+              goal: generatedScene.goal || "",
+              setup: generatedScene.setup || "",
+              summary: "",
+              max_rounds: generatedScene.max_rounds || 10,
+              order: 0,
+              round_plan: null,
+            });
+          }
+          setIsAIInputOpen(false);
+          onSaved();
+          return;
+        }
+
+        const firstScene = data.scenes[0];
+        setName(firstScene.name || "");
+        setDescription(firstScene.description || "");
+        setGoal(firstScene.goal || "");
+        setSetup(firstScene.setup || "");
+        setMaxRounds(firstScene.max_rounds || 10);
       }
 
       setIsAIInputOpen(false);
@@ -227,6 +282,9 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
     }
 
     try {
+      setRoundStreamingContent("");
+      setRoundThinkingContent("");
+
       // 转换为 Character 类型用于 prompt
       const selectedCharsForPrompt = params.sceneCharacters
         .filter((c) => c.isInScene)
@@ -262,15 +320,20 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
       ];
 
       const thinking =
-        isThinkingModel && provider.supports_thinking
+        provider.supports_thinking && enableThinking
           ? {
-              enabled: enableThinking,
+              enabled: true,
               param_key: provider.thinking_param_key || "thinking",
               type: provider.thinking_param_type || "boolean",
               default: provider.thinking_param_default,
               budget_tokens: thinkingBudget,
             }
-          : undefined;
+          : {
+              enabled: false,
+              param_key: provider.thinking_param_key || "thinking",
+              type: provider.thinking_param_type || "boolean",
+              disabled: provider.thinking_param_disabled,
+            };
 
       const data = await generate<{
         rounds: Array<{
@@ -296,6 +359,11 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
         temperature: 0.7,
         max_tokens: 4096,
         thinking,
+        reasoning_effort: provider.reasoning_effort,
+        onStream: (content, thinkingContent) => {
+          setRoundStreamingContent(content);
+          setRoundThinkingContent(thinkingContent);
+        },
       });
 
       const rounds: RoundPlan[] =
@@ -538,7 +606,11 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
       {/* AI 生成场景模态框 */}
       <AIGenerateModal
         isOpen={isAIInputOpen}
-        onClose={() => setIsAIInputOpen(false)}
+        onClose={() => {
+          setIsAIInputOpen(false);
+          setSceneStreamingContent("");
+          setSceneThinkingContent("");
+        }}
         roomContext={roomContext}
         characters={characters}
         existingScenes={existingScenes}
@@ -549,6 +621,8 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
         enableThinking={enableThinking}
         thinkingBudget={thinkingBudget}
         isGenerating={isGenerating}
+        streamingContent={sceneStreamingContent}
+        thinkingContent={sceneThinkingContent}
         onProviderChange={handleProviderChange}
         onGenerate={handleGenerateScene}
       />
@@ -556,7 +630,11 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
       {/* 轮次计划编辑模态框 */}
       <RoundPlanModal
         isOpen={isRoundPlanOpen}
-        onClose={() => setIsRoundPlanOpen(false)}
+        onClose={() => {
+          setIsRoundPlanOpen(false);
+          setRoundStreamingContent("");
+          setRoundThinkingContent("");
+        }}
         roomContext={roomContext}
         characters={characters}
         sceneName={name}
@@ -572,6 +650,8 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
         enableThinking={enableThinking}
         thinkingBudget={thinkingBudget}
         isGenerating={isGenerating}
+        streamingContent={roundStreamingContent}
+        thinkingContent={roundThinkingContent}
         onProviderChange={handleProviderChange}
         onGenerate={handleGenerateRoundPlan}
       />

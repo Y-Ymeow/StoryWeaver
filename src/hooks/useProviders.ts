@@ -17,11 +17,23 @@ export function useProviders() {
       const loaded = data ? JSON.parse(data) : [];
       setProviders(loaded);
       const active = loaded.find((p: ProviderConfig) => p.is_active);
-      if (active) {
-        setSelectedProviderId(active.id);
-        setSelectedModel(active.custom_models?.[0] || active.model || "");
-        setIsThinkingModel(active.supports_thinking || false);
-        setEnableThinking(active.supports_thinking ? !!active.thinking_param_key : false);
+      const fallback = active || loaded[0];
+      if (fallback) {
+        setSelectedProviderId((prev) =>
+          prev && loaded.some((p: ProviderConfig) => p.id === prev)
+            ? prev
+            : fallback.id,
+        );
+        setSelectedModel((prev) =>
+          prev || fallback.custom_models?.[0] || fallback.model || "",
+        );
+        setIsThinkingModel(fallback.supports_thinking || false);
+        setEnableThinking(false);
+      } else {
+        setSelectedProviderId(null);
+        setSelectedModel("");
+        setIsThinkingModel(false);
+        setEnableThinking(false);
       }
     } catch (error) {
       console.error("加载 Provider 配置失败:", error);
@@ -30,6 +42,13 @@ export function useProviders() {
 
   useEffect(() => {
     load();
+    const handleStorage = (e: StorageEvent) => {
+      if (!e.key || e.key === "ai-providers") {
+        load();
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
   }, []);
 
   return {

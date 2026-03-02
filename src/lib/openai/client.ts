@@ -31,9 +31,11 @@ export interface ChatOptions {
     param_key?: string;
     type?: "boolean" | "object";
     default?: any;
+    disabled?: any; // 禁用时的参数值
     budget_tokens?: number;
   };
   model?: string;
+  reasoning_effort?: "low" | "medium" | "high"; // OpenAI reasoning_effort
 }
 
 export class APIError extends Error {
@@ -122,22 +124,40 @@ export class AIClient {
       body.messages[0] = message;
     }
 
-    // 处理思考模式 - 只有用户启用时才发送
-    if (options?.thinking?.enabled) {
-      const paramKey = options.thinking.param_key || "thinking";
-      const thinkingType = options.thinking.type || "boolean";
+    // 处理思考模式 - 新模型默认输出 reasoning_content，必须显式禁用
+    const paramKey = options?.thinking?.param_key || "thinking";
+    const thinkingType = options?.thinking?.type || "boolean";
+    const thinking = options?.thinking;
 
+    if (thinking?.enabled) {
+      // 启用思考
       if (thinkingType === "boolean") {
         body[paramKey] = true;
-        if (options.thinking.budget_tokens)
-          body["thinking_budget"] = options.thinking.budget_tokens;
-      } else if (thinkingType === "object" && options.thinking.default) {
-        body[paramKey] = options.thinking.default;
+        if (thinking.budget_tokens)
+          body["thinking_budget"] = thinking.budget_tokens;
+      } else if (thinkingType === "object" && thinking.default) {
+        body[paramKey] = thinking.default;
       } else {
         body[paramKey] = true;
       }
+    } else {
+      // 禁用思考 - 新模型必须显式发送禁用参数
+      if (thinkingType === "boolean") {
+        body[paramKey] = false;
+      } else if (thinkingType === "object" && thinking?.disabled) {
+        body[paramKey] = thinking.disabled;
+      } else if (thinkingType === "object") {
+        body[paramKey] = { type: "disabled" };
+      }
     }
-    // 不发送禁用参数，避免某些模型不支持
+
+    // 处理 OpenAI reasoning_effort 参数 - 禁用思考时使用 low
+    if (options?.reasoning_effort) {
+      body.reasoning_effort = thinking?.enabled ? options.reasoning_effort : "low";
+    } else if (thinking?.enabled === false) {
+      // 如果没有配置 reasoning_effort 但禁用了思考，显式设置为 low
+      body.reasoning_effort = "low";
+    }
 
     const response = await fetch(url, {
       method: "POST",
@@ -186,15 +206,34 @@ export class AIClient {
       body.messages[0] = message;
     }
 
-    if (options?.thinking?.enabled) {
-      const paramKey = options.thinking.param_key || "enable_thinking";
-      const thinkingType = options.thinking.type || "boolean";
+    // 处理思考模式 - 新模型默认输出 reasoning_content，必须显式禁用
+    const paramKey = options?.thinking?.param_key || "enable_thinking";
+    const thinkingType = options?.thinking?.type || "boolean";
+    const thinking = options?.thinking;
 
+    if (thinking?.enabled) {
+      // 启用思考
       if (thinkingType === "boolean") {
         body[paramKey] = true;
-      } else if (thinkingType === "object" && options.thinking.default) {
-        body[paramKey] = options.thinking.default;
+      } else if (thinkingType === "object" && thinking.default) {
+        body[paramKey] = thinking.default;
       }
+    } else {
+      // 禁用思考 - 新模型必须显式发送禁用参数
+      if (thinkingType === "boolean") {
+        body[paramKey] = false;
+      } else if (thinkingType === "object" && thinking?.disabled) {
+        body[paramKey] = thinking.disabled;
+      } else if (thinkingType === "object") {
+        body[paramKey] = { type: "disabled" };
+      }
+    }
+
+    // 处理 OpenAI reasoning_effort 参数 - 禁用思考时使用 low
+    if (options?.reasoning_effort) {
+      body.reasoning_effort = thinking?.enabled ? options.reasoning_effort : "low";
+    } else if (thinking?.enabled === false) {
+      body.reasoning_effort = "low";
     }
 
     const response = await fetch(url, {
@@ -225,7 +264,17 @@ export class AIClient {
           if (data === "[DONE]") return;
           try {
             const parsed = JSON.parse(data);
-            const content = parsed.choices?.[0]?.delta?.content;
+            const delta = parsed.choices?.[0]?.delta || {};
+            const reasoningContent =
+              delta.reasoning_content ||
+              delta.reasoning ||
+              delta.reasoningText;
+            if (reasoningContent) {
+              yield "<think>";
+              yield String(reasoningContent);
+              yield "</think>";
+            }
+            const content = delta.content;
             if (content) yield content;
           } catch {}
         }
