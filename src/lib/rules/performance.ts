@@ -4,17 +4,37 @@
 
 import type { Character, Performance } from "@/stores";
 
+/**
+ * 表演回合（一次表演）
+ */
+export interface PerformanceTurn {
+  characterId: string;
+  characterName: string;
+  isUser: boolean;
+  types: string[];  // 内容类型：dialogue/action/thought/emotion
+  lineHint?: string;  // 台词建议/要点（一句话总结该说什么）
+}
+
+/**
+ * 轮次计划（一场戏）
+ */
+export interface RoundPlanItem {
+  round: number;
+  description: string;  // 本轮剧情描述
+  goal?: string;  // 本轮小目标
+  turns: PerformanceTurn[];  // 多个表演回合
+}
+
+/**
+ * 兼容旧版 Performer 类型
+ */
 export interface Performer {
   characterId: string;
   characterName: string;
   isUser: boolean;
   types: string[];
-}
-
-export interface RoundPlanItem {
-  round: number;
-  description: string;
-  performances: Performer[];
+  lineHint?: string;
+  isTemp?: boolean;  // 是否是临时角色
 }
 
 /**
@@ -29,16 +49,28 @@ export function getNextPerformer(
 ): Performer | null {
   const currentRoundPlan = roundPlan.find((r) => r.round === currentRound);
   const currentRoundPerfs = performances.filter((p) => p.round === currentRound);
+  
+  // 获取已表演的角色名称列表
   const performedCharNames = currentRoundPerfs.map((p) => {
     const char = characters.find((c) => c.id === p.character_id);
     return char?.name;
   }).filter(Boolean);
 
-  if (currentRoundPlan && currentRoundPlan.performances) {
+  // 兼容旧版数据结构（performances 字段）和新版（turns 字段）
+  const turns = (currentRoundPlan as any)?.turns || (currentRoundPlan as any)?.performances || [];
+  
+  if (currentRoundPlan && turns.length > 0) {
     // 按顺序找第一个还没表演的
-    for (const performer of currentRoundPlan.performances) {
+    for (const performer of turns) {
       if (!performedCharNames.includes(performer.characterName || performer.characterId)) {
-        return performer;
+        return {
+          characterId: performer.characterId,
+          characterName: performer.characterName,
+          isUser: performer.isUser,
+          types: performer.types,
+          lineHint: performer.lineHint,
+          isTemp: performer.isTemp,
+        };
       }
     }
     return null; // 本轮所有人都表演完了

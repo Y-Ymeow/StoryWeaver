@@ -6,11 +6,12 @@ import {
   Input,
   TextArea,
   Card,
-  ModelButton,
 } from "@components/ui/common";
+import { AIGenerateModal } from "./AIGenerateModal";
+import { RoundPlanModal } from "./RoundPlanModal";
 import { createScene, updateScene } from "@/db";
 import type { Scene, Room, Character } from "@/stores";
-import { createClient } from "@/lib/openai/client";
+import { useProviders, useAI } from "@/hooks";
 import {
   getSceneSystemPrompt,
   buildScenePrompt,
@@ -33,11 +34,14 @@ interface SceneEditorProps {
 interface RoundPlan {
   round: number;
   description: string;
-  performances: {
+  goal?: string;
+  turns: {
     characterId: string;
     characterName: string;
     isUser: boolean;
+    isTemp?: boolean;
     types: string[];
+    lineHint?: string;
   }[];
 }
 
@@ -46,7 +50,7 @@ interface SceneCharacter {
   id: string;
   name: string;
   isUser: boolean;
-  isInScene: boolean; // 是否在当前场景出场
+  isInScene: boolean;
 }
 
 export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
@@ -59,6 +63,7 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
   characters = [],
   existingScenes = [],
 }) => {
+  // 表单状态
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [goal, setGoal] = useState("");
@@ -69,39 +74,27 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
   const [isRoundPlanOpen, setIsRoundPlanOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // AI 生成相关
-  const [providers, setProviders] = useState<any[]>([]);
-  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(
-    null,
-  );
-  const [selectedModel, setSelectedModel] = useState("");
-  const [aiPrompt, setAiPrompt] = useState("");
-  const [isGenerating, setIsGenerating] = useState(false);
-
-  // 思考模式控制
-  const [isThinkingModel, setIsThinkingModel] = useState(false);
-  const [enableThinking, setEnableThinking] = useState(false);
-  const [thinkingBudget, setThinkingBudget] = useState(1024);
-
   // 轮次计划
   const [roundPlans, setRoundPlans] = useState<RoundPlan[]>([]);
-  const [editingRoundIndex, setEditingRoundIndex] = useState<number | null>(
-    null,
-  );
 
-  // 关键词控制（用于 AI 生成轮次计划）
-  const [keywords, setKeywords] = useState<string[]>([]);
-  const [showKeywordsInput, setShowKeywordsInput] = useState(false);
+  // 使用自定义 hooks
+  const {
+    providers,
+    selectedProviderId,
+    setSelectedProviderId,
+    selectedModel,
+    setSelectedModel,
+    isThinkingModel,
+    setIsThinkingModel,
+    enableThinking,
+    setEnableThinking,
+    thinkingBudget,
+    setThinkingBudget,
+  } = useProviders();
 
-  // 已选场景摘要作为上下文
-  const [selectedSceneSummaries, setSelectedSceneSummaries] = useState<
-    string[]
-  >([]);
+  const { isGenerating, generate } = useAI();
 
-  // 出场角色设置
-  const [sceneCharacters, setSceneCharacters] = useState<SceneCharacter[]>([]);
-  const [showCharacterSelect, setShowCharacterSelect] = useState(false);
-
+  // 加载编辑的场景数据
   useEffect(() => {
     if (editingScene) {
       setName(editingScene.name);
@@ -132,50 +125,6 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
     }
   }, [isOpen]);
 
-  // 初始化出场角色
-  useEffect(() => {
-    if (characters.length > 0) {
-      setSceneCharacters(
-        characters.map((c) => ({
-          id: c.id,
-          name: c.name,
-          isUser: c.is_user,
-          isInScene: c.is_user, // 默认用户角色出场
-        })),
-      );
-    }
-  }, [characters]);
-
-  useEffect(() => {
-    loadProvidersData();
-  }, []);
-
-  const loadProvidersData = () => {
-    try {
-      const data = localStorage.getItem("ai-providers");
-      const loadedProviders = data ? JSON.parse(data) : [];
-      setProviders(loadedProviders);
-      const active = loadedProviders.find((p: any) => p.is_active);
-      if (active) {
-        setActiveProviderId(active.id);
-        setSelectedProviderId(active.id);
-        const model = active.custom_models?.[0] || active.model;
-        if (model) setSelectedModel(model);
-
-        setIsThinkingModel(active.supports_thinking || false);
-        setEnableThinking(
-          active.supports_thinking
-            ? active.thinking_param_key
-              ? true
-              : false
-            : false,
-        );
-      }
-    } catch (error) {
-      console.error("加载 Provider 配置失败:", error);
-    }
-  };
-
   const resetForm = () => {
     setName("");
     setDescription("");
@@ -184,48 +133,34 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
     setSummary("");
     setMaxRounds(10);
     setRoundPlans([]);
-    setKeywords([]);
-    setShowKeywordsInput(false);
-    setSelectedSceneSummaries([]);
-    if (characters.length > 0) {
-      setSceneCharacters(
-        characters.map((c) => ({
-          id: c.id,
-          name: c.name,
-          isUser: c.is_user,
-          isInScene: c.is_user,
-        })),
-      );
-    }
   };
 
-  const setActiveProviderId = (id: string | null) => {
-    setSelectedProviderId(id);
-  };
-
-  // 处理场景 AI 生成
-  const handleAIResult = async () => {
+  // 处理 AI 生成场景
+  const handleGenerateScene = async (params: {
+    prompt: string;
+    selectedSceneSummaries: string[];
+  }) => {
     if (!selectedProviderId || !selectedModel) {
       alert("请先选择 Provider 和模型");
       return;
     }
 
-    setIsGenerating(true);
+    const provider = providers.find((p) => p.id === selectedProviderId);
+    if (!provider) {
+      alert("Provider 不存在");
+      return;
+    }
+
     try {
-      const provider = providers.find((p) => p.id === selectedProviderId);
-      if (!provider) throw new Error("Provider 不存在");
-
-      const client = createClient(provider);
-
       // 构建选中的场景摘要
       const sceneSummaries = existingScenes
-        .filter((s) => selectedSceneSummaries.includes(s.id) && s.summary)
+        .filter((s) => params.selectedSceneSummaries.includes(s.id) && s.summary)
         .map((s) => ({ name: s.name, summary: s.summary! }));
 
       const prompt = buildScenePrompt(
         roomContext,
         characters,
-        aiPrompt,
+        params.prompt,
         sceneSummaries,
       );
 
@@ -245,15 +180,19 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
             }
           : undefined;
 
-      const response = await client.chat(messages, {
+      const data = await generate<{
+        scenes: Array<{
+          name: string;
+          description: string;
+          goal: string;
+          setup: string;
+          max_rounds: number;
+        }>;
+      }>(provider, selectedModel, messages, {
         temperature: 0.7,
         max_tokens: 2048,
-        model: selectedModel,
         thinking,
       });
-
-      const jsonStr = response.content.replace(/```(?:json)?/g, "").trim();
-      const data = JSON.parse(jsonStr);
 
       if (data.scenes && Array.isArray(data.scenes) && data.scenes.length > 0) {
         const scene = data.scenes[0];
@@ -263,51 +202,47 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
         setSetup(scene.setup || "");
         setMaxRounds(scene.max_rounds || 10);
       }
+
+      setIsAIInputOpen(false);
     } catch (error) {
       console.error("解析 AI 结果失败:", error);
       alert(`生成失败：${error instanceof Error ? error.message : "请重试"}`);
-    } finally {
-      setIsGenerating(false);
     }
-    setIsAIInputOpen(false);
   };
 
-  // 用 AI 生成轮次计划
-  const handleGenerateRoundPlan = async () => {
+  // 处理 AI 生成轮次计划
+  const handleGenerateRoundPlan = async (params: {
+    sceneCharacters: SceneCharacter[];
+    keywords: string[];
+  }) => {
     if (!selectedProviderId || !selectedModel) {
       alert("请先选择 Provider 和模型");
       return;
     }
 
-    // 检查是否有出场角色
-    const selectedChars = sceneCharacters.filter((c) => c.isInScene);
-    if (selectedChars.length === 0) {
-      alert("请至少选择一个出场角色");
-      setShowCharacterSelect(true);
+    const provider = providers.find((p) => p.id === selectedProviderId);
+    if (!provider) {
+      alert("Provider 不存在");
       return;
     }
 
-    setIsGenerating(true);
     try {
-      const provider = providers.find((p) => p.id === selectedProviderId);
-      if (!provider) throw new Error("Provider 不存在");
-
-      const client = createClient(provider);
-
       // 转换为 Character 类型用于 prompt
-      const selectedCharsForPrompt = selectedChars.map((c) => ({
-        id: c.id,
-        name: c.name,
-        is_user: c.isUser,
-        background: "",
-        dialogue_style: "",
-        memory: null,
-        type: c.isUser ? ("user" as const) : ("ai" as const),
-        room_id: "",
-        order: 0,
-        created_at: 0,
-        updated_at: 0,
-      }));
+      const selectedCharsForPrompt = params.sceneCharacters
+        .filter((c) => c.isInScene)
+        .map((c) => ({
+          id: c.id,
+          name: c.name,
+          is_user: c.isUser,
+          background: "",
+          dialogue_style: "",
+          memory: null,
+          type: c.isUser ? ("user" as const) : ("ai" as const),
+          room_id: "",
+          order: 0,
+          created_at: 0,
+          updated_at: 0,
+        }));
 
       const prompt = buildRoundPlanPrompt(
         roomContext,
@@ -318,7 +253,7 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
           goal,
           maxRounds,
         },
-        keywords.length > 0 ? keywords : undefined,
+        params.keywords.length > 0 ? params.keywords : undefined,
       );
 
       const messages = [
@@ -337,93 +272,63 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
             }
           : undefined;
 
-      const response = await client.chat(messages, {
+      const data = await generate<{
+        rounds: Array<{
+          round: number;
+          description: string;
+          goal?: string;
+          turns?: Array<{
+            characterId: string;
+            characterName: string;
+            isUser: boolean;
+            types: string[];
+            lineHint?: string;
+          }>;
+          performances?: Array<{
+            characterId: string;
+            characterName: string;
+            isUser: boolean;
+            types: string[];
+            lineHint?: string;
+          }>;
+        }>;
+      }>(provider, selectedModel, messages, {
         temperature: 0.7,
         max_tokens: 4096,
-        model: selectedModel,
         thinking,
       });
-
-      const jsonStr = response.content.replace(/```(?:json)?/g, "").trim();
-      const data = JSON.parse(jsonStr);
 
       const rounds: RoundPlan[] =
         data.rounds?.map((r: any) => ({
           round: r.round,
           description: r.description || `第${r.round}场`,
-          performances:
+          goal: r.goal || "",
+          // 兼容旧版 performances 和新版 turns
+          turns:
+            r.turns?.map((p: any) => ({
+              characterId: p.characterId,
+              characterName: p.characterName,
+              isUser: p.isUser || false,
+              isTemp: p.isTemp || false,  // 临时角色标识
+              types: p.types || ["dialogue"],
+              lineHint: p.lineHint || "",
+            })) ||
             r.performances?.map((p: any) => ({
               characterId: p.characterId,
               characterName: p.characterName,
               isUser: p.isUser || false,
+              isTemp: p.isTemp || false,
               types: p.types || ["dialogue"],
-            })) || [],
+              lineHint: p.lineHint || "",
+            })) ||
+            [],
         })) || [];
 
       setRoundPlans(rounds);
     } catch (error) {
       console.error("生成轮次计划失败:", error);
       alert(`生成失败：${error instanceof Error ? error.message : "请重试"}`);
-    } finally {
-      setIsGenerating(false);
     }
-  };
-
-  // 手动添加轮次
-  const handleAddRound = () => {
-    const newRound: RoundPlan = {
-      round: roundPlans.length + 1,
-      description: `第${roundPlans.length + 1}场`,
-      performances: [],
-    };
-    setRoundPlans([...roundPlans, newRound]);
-  };
-
-  // 删除轮次
-  const handleDeleteRound = (index: number) => {
-    const newRounds = roundPlans.filter((_, i) => i !== index);
-    newRounds.forEach((r, i) => (r.round = i + 1));
-    setRoundPlans(newRounds);
-  };
-
-  // 更新轮次
-  const handleUpdateRound = (index: number, updates: Partial<RoundPlan>) => {
-    const newRounds = [...roundPlans];
-    newRounds[index] = { ...newRounds[index], ...updates };
-    setRoundPlans(newRounds);
-  };
-
-  // 添加表演到轮次（只使用出场角色）
-  const handleAddPerformance = (
-    roundIndex: number,
-    character: SceneCharacter,
-  ) => {
-    const newRounds = [...roundPlans];
-    newRounds[roundIndex].performances.push({
-      characterId: character.id,
-      characterName: character.name,
-      isUser: character.isUser,
-      types: ["dialogue"],
-    });
-    setRoundPlans(newRounds);
-  };
-
-  // 删除表演
-  const handleDeletePerformance = (roundIndex: number, perfIndex: number) => {
-    const newRounds = [...roundPlans];
-    newRounds[roundIndex].performances.splice(perfIndex, 1);
-    setRoundPlans(newRounds);
-  };
-
-  // 更新表演类型
-  const handleUpdatePerformanceTypes = (
-    roundIndex: number,
-    perfIndex: number,
-    types: string[],
-  ) => {
-    const newRounds = [...roundPlans];
-    newRounds[roundIndex].performances[perfIndex].types = types;
-    setRoundPlans(newRounds);
   };
 
   const handleSubmit = async () => {
@@ -465,6 +370,20 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleProviderChange = (config: {
+    providerId: string | null;
+    model: string;
+    isThinkingModel: boolean;
+    enableThinking: boolean;
+    thinkingBudget: number;
+  }) => {
+    setSelectedProviderId(config.providerId);
+    setSelectedModel(config.model);
+    setIsThinkingModel(config.isThinkingModel);
+    setEnableThinking(config.enableThinking);
+    setThinkingBudget(config.thinkingBudget);
   };
 
   return (
@@ -598,8 +517,11 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
               <div class="space-y-1">
                 {roundPlans.slice(0, 3).map((round) => (
                   <div key={round.round} class="text-sm text-gray-400">
-                    • 第{round.round}场：{round.description} (
-                    {round.performances.length}个表演)
+                    • 第{round.round}场：{round.description}
+                    {round.goal && (
+                      <span class="text-gray-500">（{round.goal}）</span>
+                    )}{" "}
+                    ({round.turns.length}个表演)
                   </div>
                 ))}
                 {roundPlans.length > 3 && (
@@ -614,416 +536,45 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
       </Modal>
 
       {/* AI 生成场景模态框 */}
-      <Modal
+      <AIGenerateModal
         isOpen={isAIInputOpen}
         onClose={() => setIsAIInputOpen(false)}
-        title="🤖 AI 生成场景"
-        size="lg"
-      >
-        <div class="space-y-4">
-          <div class="flex items-center justify-between">
-            <span class="text-sm text-gray-400">
-              当前模型：
-              {providers.find((p) => p.id === selectedProviderId)?.name ||
-                "未选择"}{" "}
-              - {selectedModel || "未选择"}
-            </span>
-            <ModelButton
-              providers={providers}
-              selectedProviderId={selectedProviderId}
-              selectedModel={selectedModel}
-              isThinkingModel={isThinkingModel}
-              enableThinking={enableThinking}
-              thinkingBudget={thinkingBudget}
-              onConfirm={(config) => {
-                setSelectedProviderId(config.providerId);
-                setSelectedModel(config.model);
-                setIsThinkingModel(config.isThinkingModel);
-                setEnableThinking(config.enableThinking);
-                setThinkingBudget(config.thinkingBudget);
-              }}
-              size="sm"
-            />
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-gray-300 mb-2">
-              💬 提示词
-            </label>
-            <TextArea
-              value={aiPrompt}
-              onInput={(e) =>
-                setAiPrompt((e.target as HTMLTextAreaElement).value)
-              }
-              placeholder="描述你想要生成的场景..."
-              rows={3}
-            />
-          </div>
-
-          {/* 选择已有场景摘要作为上下文 */}
-          {existingScenes.filter((s) => s.summary).length > 0 && (
-            <div>
-              <label class="block text-sm font-medium text-gray-300 mb-2">
-                📚 选择参考场景摘要（可选）
-              </label>
-              <p class="text-xs text-gray-500 mb-2">
-                选择已完成的场景摘要作为上下文，帮助 AI 生成连贯的剧情
-              </p>
-              <div class="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
-                {existingScenes
-                  .filter((s) => s.summary)
-                  .map((s) => (
-                    <button
-                      key={s.id}
-                      onClick={() => {
-                        setSelectedSceneSummaries((prev) =>
-                          prev.includes(s.id)
-                            ? prev.filter((id) => id !== s.id)
-                            : [...prev, s.id],
-                        );
-                      }}
-                      class={`px-3 py-1 rounded text-sm transition-colors ${
-                        selectedSceneSummaries.includes(s.id)
-                          ? "bg-primary-600 text-white"
-                          : "bg-dark-surface text-gray-300 hover:bg-dark-accent"
-                      }`}
-                    >
-                      📝 {s.name}
-                    </button>
-                  ))}
-              </div>
-            </div>
-          )}
-
-          <div class="flex justify-end gap-3 pt-4 border-t border-dark-accent">
-            <Button onClick={() => setIsAIInputOpen(false)} variant="secondary">
-              取消
-            </Button>
-            <Button
-              onClick={handleAIResult}
-              isLoading={isGenerating}
-              disabled={
-                !selectedProviderId || !selectedModel || !aiPrompt.trim()
-              }
-            >
-              {isGenerating ? "生成中..." : "✨ 生成"}
-            </Button>
-          </div>
-        </div>
-      </Modal>
+        roomContext={roomContext}
+        characters={characters}
+        existingScenes={existingScenes}
+        providers={providers}
+        selectedProviderId={selectedProviderId}
+        selectedModel={selectedModel}
+        isThinkingModel={isThinkingModel}
+        enableThinking={enableThinking}
+        thinkingBudget={thinkingBudget}
+        isGenerating={isGenerating}
+        onProviderChange={handleProviderChange}
+        onGenerate={handleGenerateScene}
+      />
 
       {/* 轮次计划编辑模态框 */}
-      <Modal
+      <RoundPlanModal
         isOpen={isRoundPlanOpen}
         onClose={() => setIsRoundPlanOpen(false)}
-        title="📋 安排轮次"
-        size="xl"
-        footer={
-          <div class="flex justify-end gap-3">
-            <Button
-              onClick={() => setIsRoundPlanOpen(false)}
-              variant="secondary"
-            >
-              完成
-            </Button>
-          </div>
-        }
-      >
-        <div class="space-y-4 ">
-          <div class="bg-dark-accent/30 p-3 rounded-lg">
-            <p class="text-sm text-gray-300">设置出场角色并生成轮次计划。</p>
-          </div>
-
-          {/* 出场角色选择 */}
-          <Card>
-            <div class="flex items-center justify-between mb-3">
-              <h4 class="font-semibold text-white">
-                🎭 出场角色 ({sceneCharacters.filter((c) => c.isInScene).length}
-                人)
-              </h4>
-              <Button
-                onClick={() => setShowCharacterSelect(!showCharacterSelect)}
-                size="sm"
-                variant="secondary"
-              >
-                {showCharacterSelect ? "收起" : "选择角色"}
-              </Button>
-            </div>
-
-            {showCharacterSelect && (
-              <div class="flex flex-wrap gap-2">
-                {sceneCharacters.map((char) => (
-                  <button
-                    key={char.id}
-                    onClick={() => {
-                      const newChars = sceneCharacters.map((c) =>
-                        c.id === char.id
-                          ? { ...c, isInScene: !c.isInScene }
-                          : c,
-                      );
-                      setSceneCharacters(newChars);
-                    }}
-                    class={`px-3 py-1 rounded text-sm transition-colors ${
-                      char.isInScene
-                        ? "bg-primary-600 text-white"
-                        : "bg-dark-surface text-gray-300 hover:bg-dark-accent"
-                    }`}
-                  >
-                    {char.isUser ? "👤" : "🤖"} {char.name}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {!showCharacterSelect && (
-              <div class="flex flex-wrap gap-2">
-                {sceneCharacters
-                  .filter((c) => c.isInScene)
-                  .map((char) => (
-                    <span
-                      key={char.id}
-                      class="px-2 py-1 bg-primary-600/30 text-primary-300 rounded text-sm"
-                    >
-                      {char.isUser ? "👤" : "🤖"} {char.name}
-                    </span>
-                  ))}
-              </div>
-            )}
-          </Card>
-
-          {/* AI 生成区域 */}
-          <Card>
-            <div class="flex items-center justify-between mb-3">
-              <h4 class="font-semibold text-white">🤖 AI 快速生成</h4>
-              <ModelButton
-                providers={providers}
-                selectedProviderId={selectedProviderId}
-                selectedModel={selectedModel}
-                isThinkingModel={isThinkingModel}
-                enableThinking={enableThinking}
-                thinkingBudget={thinkingBudget}
-                onConfirm={(config) => {
-                  setSelectedProviderId(config.providerId);
-                  setSelectedModel(config.model);
-                  setIsThinkingModel(config.isThinkingModel);
-                  setEnableThinking(config.enableThinking);
-                  setThinkingBudget(config.thinkingBudget);
-                }}
-                size="sm"
-              />
-            </div>
-
-            {/* 关键词控制 */}
-            <div class="mb-3">
-              <div class="flex items-center gap-2 mb-2">
-                <Button
-                  onClick={() => setShowKeywordsInput(!showKeywordsInput)}
-                  size="sm"
-                  variant={keywords.length > 0 ? "primary" : "secondary"}
-                >
-                  🏷️ 关键词控制{" "}
-                  {keywords.length > 0 ? `(${keywords.length})` : ""}
-                </Button>
-                {keywords.length > 0 && (
-                  <Button
-                    onClick={() => setKeywords([])}
-                    size="sm"
-                    variant="ghost"
-                  >
-                    清空
-                  </Button>
-                )}
-              </div>
-
-              {showKeywordsInput && (
-                <div class="space-y-2">
-                  <p class="text-xs text-gray-400">
-                    为每场戏设置关键词，AI 会根据关键词生成剧情。留空则让 AI
-                    自由发挥。
-                  </p>
-                  <div class="space-y-2">
-                    {Array.from({ length: maxRounds }).map((_, i) => (
-                      <div
-                        key={i}
-                        class="flex max-md:flex-col md:items-center gap-2"
-                      >
-                        <span class="text-xs text-gray-500 w-16">
-                          第{i + 1}场
-                        </span>
-                        <input
-                          type="text"
-                          value={keywords[i] || ""}
-                          onInput={(e) => {
-                            const newKeywords = [...keywords];
-                            newKeywords[i] = (
-                              e.target as HTMLInputElement
-                            ).value;
-                            setKeywords(newKeywords);
-                          }}
-                          placeholder={`第${i + 1}场关键词（如：初次相遇、建立信任）`}
-                          class="flex-1 bg-dark-surface border border-dark-accent rounded px-3 py-1.5 text-sm text-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                        />
-                        {keywords[i] && (
-                          <button
-                            onClick={() => {
-                              const newKeywords = keywords.filter(
-                                (_, idx) => idx !== i,
-                              );
-                              setKeywords(newKeywords);
-                            }}
-                            class="text-gray-400 hover:text-red-400"
-                          >
-                            ✕
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div class="flex max-md:flex-col-reverse md:items-center gap-2">
-              <Button
-                onClick={handleGenerateRoundPlan}
-                isLoading={isGenerating}
-                disabled={!selectedProviderId || !selectedModel}
-                size="sm"
-              >
-                生成轮次计划
-              </Button>
-              <span class="text-sm text-gray-400">
-                当前：
-                {providers.find((p) => p.id === selectedProviderId)?.name ||
-                  "未选择"}{" "}
-                - {selectedModel || "未选择"}
-              </span>
-            </div>
-          </Card>
-
-          {/* 轮次列表 */}
-          <div class="space-y-3">
-            <div class="flex items-center justify-between">
-              <h4 class="font-semibold text-white">手动编辑</h4>
-              <div class="flex gap-2">
-                <Button
-                  onClick={() => {
-                    if (confirm("确定要清空所有轮次吗？")) {
-                      setRoundPlans([]);
-                    }
-                  }}
-                  size="sm"
-                  variant="ghost"
-                >
-                  🗑️ 清空
-                </Button>
-                <Button onClick={handleAddRound} size="sm">
-                  + 添加场次
-                </Button>
-              </div>
-            </div>
-
-            {roundPlans.length === 0 ? (
-              <div class="text-center py-8 text-gray-400">
-                暂无轮次，点击"添加场次"或使用 AI 生成
-              </div>
-            ) : (
-              roundPlans.map((round, roundIndex) => (
-                <Card key={round.round}>
-                  <div class="flex items-center justify-between max-md:items-end mb-3">
-                    <div class="flex max-md:flex-wrap md:items-center gap-2">
-                      <span class="font-semibold text-white max-md:w-full max-md:block">
-                        第{round.round}场
-                      </span>
-                      <Input
-                        value={round.description}
-                        onInput={(e) =>
-                          handleUpdateRound(roundIndex, {
-                            description: (e.target as HTMLInputElement).value,
-                          })
-                        }
-                        placeholder="剧情描述"
-                        class="w-64 text-sm"
-                      />
-                    </div>
-                    <Button
-                      onClick={() => handleDeleteRound(roundIndex)}
-                      size="sm"
-                      variant="ghost"
-                    >
-                      🗑️
-                    </Button>
-                  </div>
-
-                  {/* 表演列表 */}
-                  <div class="space-y-2 ml-4">
-                    {round.performances.map((perf, perfIndex) => (
-                      <div
-                        key={perfIndex}
-                        class="flex items-center gap-2 p-2 bg-dark-surface rounded"
-                      >
-                        <span class="text-lg">{perf.isUser ? "👤" : "🤖"}</span>
-                        <span class="font-medium text-white flex-1">
-                          {perf.characterName}
-                        </span>
-                        <select
-                          value={perf.types[0] || "dialogue"}
-                          onChange={(e) =>
-                            handleUpdatePerformanceTypes(
-                              roundIndex,
-                              perfIndex,
-                              [(e.target as HTMLSelectElement).value],
-                            )
-                          }
-                          class="px-2 py-1 bg-dark-accent rounded text-sm text-white"
-                        >
-                          <option value="dialogue">💬 对话</option>
-                          <option value="action">🎯 动作</option>
-                          <option value="thought">💭 心理</option>
-                          <option value="emotion">❤️ 表情</option>
-                        </select>
-                        <Button
-                          onClick={() =>
-                            handleDeletePerformance(roundIndex, perfIndex)
-                          }
-                          size="sm"
-                          variant="ghost"
-                        >
-                          ✕
-                        </Button>
-                      </div>
-                    ))}
-
-                    {/* 添加演员按钮（只使用出场角色） */}
-                    <div class="flex flex-wrap gap-2">
-                      {sceneCharacters
-                        .filter(
-                          (c) =>
-                            c.isInScene &&
-                            !round.performances.find(
-                              (p) => p.characterId === c.id,
-                            ),
-                        )
-                        .map((character) => (
-                          <button
-                            key={character.id}
-                            onClick={() =>
-                              handleAddPerformance(roundIndex, character)
-                            }
-                            class="px-3 py-1 bg-dark-accent hover:bg-primary-600 rounded text-sm text-white transition-colors"
-                          >
-                            + {character.name}{" "}
-                            {character.isUser ? "(用户)" : ""}
-                          </button>
-                        ))}
-                    </div>
-                  </div>
-                </Card>
-              ))
-            )}
-          </div>
-        </div>
-      </Modal>
+        roomContext={roomContext}
+        characters={characters}
+        sceneName={name}
+        sceneDescription={description}
+        sceneGoal={goal}
+        maxRounds={maxRounds}
+        roundPlans={roundPlans}
+        onRoundPlansChange={setRoundPlans}
+        providers={providers}
+        selectedProviderId={selectedProviderId}
+        selectedModel={selectedModel}
+        isThinkingModel={isThinkingModel}
+        enableThinking={enableThinking}
+        thinkingBudget={thinkingBudget}
+        isGenerating={isGenerating}
+        onProviderChange={handleProviderChange}
+        onGenerate={handleGenerateRoundPlan}
+      />
     </>
   );
 };

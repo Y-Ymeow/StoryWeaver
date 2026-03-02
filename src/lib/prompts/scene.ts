@@ -9,6 +9,7 @@ export function buildSceneRoundPrompt(
   performances: any[],
   roundNum: number,
   roundGoal?: string,
+  lineHint?: string,  // 新增：台词建议
 ): string {
   // 获取最近历史（最多 3 轮）
   const maxRound = performances.length > 0 ? Math.max(...performances.map(p => p.round)) : 0;
@@ -32,6 +33,8 @@ export function buildSceneRoundPrompt(
     })
     .join("\n");
 
+  const lineHintInfo = lineHint ? `\n\n## 💡 台词建议\n${lineHint}` : "";
+
   return `你正在扮演角色【${character.name}】进行即兴表演。
 
 ## 角色设定
@@ -47,6 +50,7 @@ ${scene.goal ? `- 场景目标：${scene.goal}` : ""}
 
 ## 🎯 本轮目标
 ${roundGoal || "根据剧情自然发展"}
+${lineHintInfo}
 
 ## 近期演出
 ${recentHistory || "（这是第一轮）"}
@@ -57,6 +61,7 @@ ${recentHistory || "（这是第一轮）"}
 3. **留白艺术**：不需要每次都表达完整，适当的沉默和简单反应更真实
 4. **符合情境**：根据剧情氛围调整反应强度（日常对话平淡，关键时刻才有强烈情绪）
 5. **避免重复**：不要重复使用相同的表情和动作描述
+6. **参考台词建议**：如果有台词建议，请参考其方向进行表演，但不要生搬硬套
 
 ## 输出格式（可选的才写，不要硬凑）
 💬 对话：（主要表达方式，1-2 句）

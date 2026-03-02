@@ -11,6 +11,7 @@ interface UserPerformanceInputProps {
   character: Character;
   value: { dialogue: string; action: string; thought: string; emotion: string };
   onChange: (value: { dialogue: string; action: string; thought: string; emotion: string }) => void;
+  lineHint?: string;  // 台词建议
 }
 
 type InputTab = "dialogue" | "action" | "thought" | "emotion";
@@ -19,6 +20,7 @@ export const UserPerformanceInput: FunctionalComponent<UserPerformanceInputProps
   character,
   value,
   onChange,
+  lineHint,
 }) => {
   const [activeTab, setActiveTab] = useState<InputTab>("dialogue");
   const [expanded, setExpanded] = useState(false);
@@ -80,7 +82,7 @@ export const UserPerformanceInput: FunctionalComponent<UserPerformanceInputProps
   return (
     <div class="space-y-2">
       {/* 角色名和折叠按钮 */}
-      <div 
+      <div
         class="flex items-center justify-between cursor-pointer py-1"
         onClick={() => setExpanded(!expanded)}
       >
@@ -94,7 +96,19 @@ export const UserPerformanceInput: FunctionalComponent<UserPerformanceInputProps
         </div>
         <span class="text-gray-400 text-sm">{expanded ? "▼" : "▶"}</span>
       </div>
-      
+
+      {/* 台词建议 */}
+      {lineHint && (
+        <div class="bg-primary-600/20 border border-primary-500/30 rounded-lg px-3 py-2">
+          <div class="text-xs text-primary-300 mb-1">
+            💡 台词建议
+          </div>
+          <div class="text-sm text-white font-medium">
+            {lineHint}
+          </div>
+        </div>
+      )}
+
       {expanded && (
         <>
           {/* Tab 切换 - 更紧凑 */}
