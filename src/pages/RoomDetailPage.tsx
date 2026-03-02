@@ -81,6 +81,10 @@ export const RoomDetailPage: FunctionalComponent<RoomDetailPageProps> = ({
   };
 
   const handleCreateScene = () => {
+    if (scenes.length >= (room.max_scenes || 50)) {
+      alert(`场景已达到上限（${room.max_scenes || 50}）`);
+      return;
+    }
     setEditingScene(null);
     setIsSceneEditorOpen(true);
   };
@@ -124,29 +128,32 @@ export const RoomDetailPage: FunctionalComponent<RoomDetailPageProps> = ({
     loadRoomData();
   };
 
-  const handleUpdateRoom = (data: {
+  const handleUpdateRoom = async (data: {
     name: string;
     setting: string;
     plot_summary: string;
     worldview: string;
     tone: string;
+    max_scenes: number;
   }) => {
     setIsDeleting(true);
     try {
-      updateRoom(room.id, {
+      const updatedRoom = await updateRoom(room.id, {
         name: data.name,
         setting: data.setting,
         plot_summary: data.plot_summary || "",
         worldview: data.worldview || "",
         tone: data.tone || "",
-      }).then(() => {
-        setIsEditing(false);
-        loadRoomData();
-        alert("房间信息已更新");
+        max_scenes: data.max_scenes || 50,
       });
+      setCurrentRoom(updatedRoom);
+      setIsEditing(false);
+      loadRoomData();
+      alert("房间信息已更新");
     } catch (error) {
       console.error("更新房间失败:", error);
       alert("更新房间失败");
+    } finally {
       setIsDeleting(false);
     }
   };
@@ -205,7 +212,12 @@ export const RoomDetailPage: FunctionalComponent<RoomDetailPageProps> = ({
               >
                 👥 角色 ({characters.length})
               </Button>
-              <Button onClick={handleCreateScene}>+ 添加场景</Button>
+              <Button
+                onClick={handleCreateScene}
+                disabled={scenes.length >= (room.max_scenes || 50)}
+              >
+                + 添加场景
+              </Button>
             </div>
           </div>
 
@@ -361,6 +373,12 @@ export const RoomDetailPage: FunctionalComponent<RoomDetailPageProps> = ({
                   </label>
                   <div class="text-white text-sm">{room.tone || "未设置"}</div>
                 </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-300 mb-1">
+                    场景上限
+                  </label>
+                  <div class="text-white text-sm">{room.max_scenes || 50}</div>
+                </div>
                 {room.current_performance_summary && (
                   <div>
                     <label class="block text-sm font-medium text-gray-300 mb-1">
@@ -472,4 +490,3 @@ export const RoomDetailPage: FunctionalComponent<RoomDetailPageProps> = ({
     </div>
   );
 };
-

@@ -1,13 +1,13 @@
 The user wants me to create a comprehensive project summary based on the conversation history. Let me analyze what we've been working on:
 
 1. This is an AI-powered script creation platform (AI 剧本房)
-2. We've been fixing issues with the scene performance modal
-3. Key issues fixed:
-   - Round/turn management based on round_plan
-   - Button display logic (user input vs AI performance)
-   - Performance history display
-   - Prompt improvements for context
-   - Code refactoring
+2. We've been working on multiple issues:
+   - Round/turn management for scene performances
+   - Temporary character support (路人甲/配角)
+   - AI generation optimization (speed, streaming)
+   - Thinking mode configuration for different AI providers
+   - JSON parsing improvements
+   - Batch generation for rounds
 
 Let me create a comprehensive summary.# Project Summary
 
@@ -28,6 +28,7 @@ Build an AI-powered interactive script creation platform (AI 剧本房) where us
 - **AI Layer**: `src/lib/openai/client.ts` with unified API client
 - **UI Components**: `src/components/ui/` with common components and page-specific components
 - **Rules Engine**: `src/lib/rules/` for performance logic
+- **Hooks**: `src/hooks/` for reusable logic (useAI, useAIChatStream, useProviders)
 
 ### Important Conventions
 - **Path Aliases**: `@/stores`, `@/db`, `@/components`, `@/lib`, `@/providers`
@@ -36,10 +37,11 @@ Build an AI-powered interactive script creation platform (AI 剧本房) where us
 - **Round Plan Storage**: Stored as JSON string in `scenes.round_plan` field
 
 ### AI Provider Configuration
-- Providers can be configured to support thinking mode (`supports_thinking: true`)
+- Providers configured with `supports_thinking: true` for thinking mode support
 - Thinking parameters: `thinking_param_key`, `thinking_param_type` ('boolean' | 'object'), `thinking_param_default`
-- In AI Input Config, users must check "🧠 这是思考模型" to enable thinking controls
-- GLM-5/GLM-4.7 require explicit disable: `{ type: "disabled" }`
+- **Thinking mode is OFF by default** - users must explicitly enable it
+- When `enableThinking=false`, no thinking parameters are sent (compatible with all providers)
+- GLM-5/GLM-4.7 require explicit disable: `{ type: "disabled" }` (handled via provider presets)
 
 ### Database Schema
 - **rooms**: id, name, setting, plot_summary, worldview, tone, current_performance_summary
@@ -55,7 +57,7 @@ Build an AI-powered interactive script creation platform (AI 剧本房) where us
 3. **[DONE]** Provider management UI with thinking mode configuration
 4. **[DONE]** AI generation for rooms, characters, and scenes with JSON parsing
 5. **[DONE]** Context-aware AI generation (passes story background, existing characters/scenes)
-6. **[DONE]** Fixed JSON parsing to handle markdown code blocks
+6. **[DONE]** Fixed JSON parsing to handle markdown code blocks and extract JSON from mixed content
 7. **[DONE]** Fixed modal closing issues after AI generation
 8. **[DONE]** Fixed data merging issue in room data updates
 9. **[DONE]** Created RoomDetailPage with scene management
@@ -70,13 +72,18 @@ Build an AI-powered interactive script creation platform (AI 剧本房) where us
 18. **[DONE]** Room edit and delete functionality in settings tab
 19. **[DONE]** Scene round plan storage and retrieval
 20. **[DONE]** Performance modal refactoring with rules engine
+21. **[DONE]** Temporary character support (服务员/店员/保安/路人甲等)
+22. **[DONE]** Line hint system for performance guidance (direction-based, not specific lines)
+23. **[DONE]** Batch round generation (1/2/3/5/10 rounds at a time)
+24. **[DONE]** Component refactoring (ScenePerformanceModal → Header/Footer/SummaryEditModal)
+25. **[DONE]** AI hooks extraction (useAI, useAIChatStream)
 
 ### Key Bug Fixes
 - **sql.js import**: Changed from default import to named import `{ initSqlJs }`
 - **TailwindCSS v4**: Removed `@source` directive, uses `@theme` for custom colors
 - **Database constraints**: Fixed NOT NULL constraint errors in migrations
 - **Thinking mode**: Now only sends thinking parameters when explicitly enabled
-- **JSON parsing**: Added console.log debugging and markdown code block extraction
+- **JSON parsing**: Added robust extraction - finds first `{`/`[` and last `}`/`]`, removes markdown blocks
 - **Modal closing**: Added `onClose()` call in `handleAIResult` to close parent modal
 - **TypeScript errors**: Fixed missing `summary` field in Scene creation
 - **Round plan storage**: Added `round_plan` field to scenes table with migration
@@ -84,6 +91,8 @@ Build an AI-powered interactive script creation platform (AI 剧本房) where us
 - **Round progression**: Fixed logic to check round completion based on round_plan
 - **Button display**: Fixed to show correct button based on pending performers
 - **Prompt context**: Fixed to include all content types (dialogue, action, thought, emotion)
+- **Prompt optimization**: Balanced brevity with sufficient guidance for quality output
+- **Thinking mode defaults**: Changed to OFF by default, only sends parameters when enabled
 
 ### File Structure Created
 ```
@@ -96,8 +105,8 @@ src/
 │   └── ui/
 │       ├── common/         # Button, Card, Modal, Input, TextArea, DatabaseSelector, AIInputConfig, ModelSelector, ModelButton
 │       ├── home/           # Settings, AIModelSettings, AIGenerate, CreateRoomWizard
-│       ├── room/           # UserPerformanceInput, AIActor
-│       └── scene/          # ScenePerformanceModal, SceneEditor, PerformanceList, PerformanceBubble
+│       ├── room/           # UserPerformanceInput, AIActor, CharacterManager
+│       └── scene/          # ScenePerformanceModal, ScenePerformanceHeader, ScenePerformanceFooter, SceneEditor, AIGenerateModal, RoundPlanModal, SummaryEditModal, PerformanceList, PerformanceBubble
 ├── db/
 │   ├── core.ts             # Database initialization
 │   ├── file-system.ts      # File System Access API helpers
@@ -105,17 +114,22 @@ src/
 │   ├── migrations.ts       # Database migrations (v1: initial, v2: add round_plan & primary_type)
 │   ├── schema.ts           # Table definitions
 │   └── models/             # CRUD operations for each table
+├── hooks/
+│   ├── index.ts            # Hook exports
+│   ├── useAI.ts            # AI chat with JSON parsing and streaming support
+│   ├── useAIChatStream.ts  # Streaming AI chat
+│   └── useProviders.ts     # Provider configuration management
 ├── lib/
 │   ├── directive/          # Command processing
 │   ├── memory/             # Memory management (generateCharacterMemory, generateSceneSummary)
 │   ├── openai/
-│   │   ├── client.ts       # AI client
+│   │   ├── client.ts       # AI client with thinking mode support
 │   │   ├── response.ts     # Response handling
 │   │   └── providers.ts    # Provider utilities
 │   ├── parser/             # Content parsing utilities
-│   ├── prompts/            # Prompt templates (scene.ts, performance.ts)
-│   └── rules/              # Business rules (performance.ts)
-├── providers/              # AI provider implementations
+│   ├── prompts/            # Prompt templates (scene.ts, scene-editor.ts, performance.ts)
+│   └── rules/              # Business rules (performance.ts, character-helper.ts)
+├── providers/              # AI provider implementations with presets
 ├── stores/                 # Global state management
 └── types/sql.js.d.ts       # TypeScript definitions
 ```
@@ -137,6 +151,7 @@ src/
 - [x] AI summary generation for scenes
 - [x] Streaming response support
 - [x] Improved prompt with all content types in context
+- [x] Robust JSON parsing (extracts from mixed content)
 
 ### [DONE] UI Components
 - [x] Database selector with file handle persistence
@@ -153,6 +168,10 @@ src/
 - [x] PerformanceBubble component
 - [x] ModelButton component
 - [x] UserPerformanceInput component
+- [x] ScenePerformanceHeader/Footer components
+- [x] SummaryEditModal component
+- [x] AIGenerateModal component
+- [x] RoundPlanModal component
 
 ### [DONE] Business Logic
 - [x] Round plan storage and retrieval
@@ -162,33 +181,35 @@ src/
 - [x] Button display logic (user input vs AI performance)
 - [x] Manual round progression (no auto-trigger)
 - [x] Rules engine extraction to `src/lib/rules/`
+- [x] Temporary character support
+- [x] Line hint system (direction-based guidance)
+- [x] Batch round generation (1/2/3/5/10 rounds)
 
 ### [TODO] Next Steps
-1. [TODO] Fix last round auto-finish without summary generation
-2. [TODO] Fix round order: AI should perform before user in same round
-3. [TODO] Add streaming response display in performance modal
-4. [TODO] Improve memory auto-generation based on performance history
-5. [TODO] Add mobile responsive improvements
-6. [TODO] Create tutorial/onboarding flow
-7. [TODO] Add collaborative features (multi-user support)
+1. [TODO] Add streaming response display in AI generation modals (scene/character/round planning)
+2. [TODO] Improve memory auto-generation based on performance history
+3. [TODO] Add mobile responsive improvements
+4. [TODO] Create tutorial/onboarding flow
+5. [TODO] Add collaborative features (multi-user support)
+6. [TODO] Optimize AI generation speed with better token management
 
 ### Known Issues to Monitor
-- Last round finishes automatically without user clicking "结束演出"
-- In rounds with both AI and user, user must submit first to trigger AI (should be reversed)
-- JSON parsing may still fail if AI returns malformed JSON
 - Thinking mode behavior varies by model (user must configure per provider)
 - File System Access API only works in secure contexts (HTTPS/localhost)
 - Some older browsers don't support required APIs
 - Performance history may be slow with large datasets (consider pagination)
+- AI may not always follow prompt instructions for JSON format (robust parsing helps)
+- Batch generation reduces wait time but requires multiple clicks for full scenes
 
 ---
 
 ## Summary Metadata
-**Update time**: 2026-02-28
-**Last build**: Successful (154.86 kB JS, 31.70 kB CSS)
+**Update time**: 2026-03-02
+**Version**: 0.1.0
+**Last build**: Successful (187.14 kB JS, 39.65 kB CSS)
 **Database version**: 2 (added round_plan and primary_type fields)
 
 ---
 
 ## Summary Metadata
-**Update time**: 2026-02-28T05:21:54.848Z 
+**Update time**: 2026-03-02T12:34:08.756Z 

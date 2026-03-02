@@ -13,6 +13,7 @@ export const TABLES = {
       worldview TEXT,
       tone TEXT,
       current_performance_summary TEXT,
+      max_scenes INTEGER NOT NULL DEFAULT 50,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     )

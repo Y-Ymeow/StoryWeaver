@@ -63,6 +63,9 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
   characters = [],
   existingScenes = [],
 }) => {
+  const maxScenesLimit = Math.max(1, Math.min(200, roomContext.max_scenes || 50));
+  const existingSceneCount = existingScenes.length;
+
   // 表单状态
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -231,7 +234,16 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
 
       if (data.scenes && Array.isArray(data.scenes) && data.scenes.length > 0) {
         if (!editingScene && data.scenes.length > 1) {
-          for (const generatedScene of data.scenes) {
+          const remaining = maxScenesLimit - existingSceneCount;
+          if (remaining <= 0) {
+            alert(`场景已达到上限（${maxScenesLimit}）`);
+            return;
+          }
+          const clippedScenes = data.scenes.slice(0, remaining);
+          if (data.scenes.length > clippedScenes.length) {
+            alert(`超出场景上限，已仅添加 ${clippedScenes.length} 个场景`);
+          }
+          for (const generatedScene of clippedScenes) {
             if (!generatedScene?.name?.trim()) continue;
             await createScene({
               room_id: roomId,
@@ -418,6 +430,10 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
           round_plan: roundPlans.length > 0 ? JSON.stringify(roundPlans) : null,
         });
       } else {
+        if (existingSceneCount >= maxScenesLimit) {
+          alert(`场景已达到上限（${maxScenesLimit}）`);
+          return;
+        }
         await createScene({
           room_id: roomId,
           name,

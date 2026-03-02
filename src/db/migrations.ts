@@ -34,7 +34,7 @@ export const migration001: Migration = {
       `INSERT OR REPLACE INTO system_settings (key, value) VALUES ('db_version', '1')`,
     );
     db.run(
-      `INSERT OR REPLACE INTO system_settings (key, value) VALUES ('app_version', '0.0.1')`,
+      `INSERT OR REPLACE INTO system_settings (key, value) VALUES ('app_version', '0.2.0')`,
     );
     db.run(
       `INSERT OR REPLACE INTO system_settings (key, value) VALUES ('theme', 'dark')`,
@@ -116,9 +116,47 @@ export const migration002: Migration = {
 };
 
 /**
+ * 迁移 3 - 添加 rooms.max_scenes 字段
+ */
+export const migration003: Migration = {
+  version: 3,
+  description: "添加 rooms.max_scenes 字段",
+  up: (db: Database) => {
+    try {
+      const checkStmt = db.prepare("PRAGMA table_info(rooms)");
+      let hasMaxScenes = false;
+      while (checkStmt.step()) {
+        const row = checkStmt.get() as any[];
+        if (row[1] === "max_scenes") {
+          hasMaxScenes = true;
+          break;
+        }
+      }
+      checkStmt.free();
+
+      if (!hasMaxScenes) {
+        db.run("ALTER TABLE rooms ADD COLUMN max_scenes INTEGER NOT NULL DEFAULT 50");
+      }
+      db.run(
+        "UPDATE rooms SET max_scenes = 50 WHERE max_scenes IS NULL OR max_scenes <= 0",
+      );
+    } catch (e) {
+      console.error("检查 rooms 表结构失败:", e);
+    }
+
+    db.run(
+      `INSERT OR REPLACE INTO system_settings (key, value) VALUES ('db_version', '3')`,
+    );
+  },
+  down: () => {
+    console.log("迁移 v3 无法回滚");
+  },
+};
+
+/**
  * 迁移列表
  */
-export const migrations: Migration[] = [migration001, migration002];
+export const migrations: Migration[] = [migration001, migration002, migration003];
 
 /**
  * 运行迁移

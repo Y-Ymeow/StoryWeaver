@@ -23,3 +23,12 @@ export {
 } from "./scene-editor";
 
 export { buildSceneRoundPrompt } from "./scene";
+
+export {
+  buildAIInputPrompt,
+  getSystemPrompt,
+  type AIInputMode,
+  type RoomContext,
+  type CharacterContext,
+  type SceneContext,
+} from "./ai-input";

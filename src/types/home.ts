@@ -25,6 +25,7 @@ export interface CreateRoomData {
     worldview: string;
     tone: string;
     current_performance_summary?: string;
+    max_scenes: number;
   };
   characters: CharacterFormData[];
   scenes: SceneFormData[];
@@ -50,40 +51,6 @@ export interface SceneFormData {
   goal: string;
   setup: string;
   max_rounds: number;
-}
-
-/**
- * AIGenerate 组件 Props
- */
-export interface AIGenerateProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onGenerate: (result: AIGenerateResult) => void;
-  providers: ProviderConfig[];
-  activeProviderId?: string | null;
-  mode?: "room" | "character" | "scene" | "custom";
-  roomContext?: {
-    name?: string;
-    setting?: string;
-    plot_summary?: string;
-    worldview?: string;
-  };
-  characters?: Array<{ name: string; background: string; dialogue_style: string }>;
-  scenes?: Array<{ name: string; description: string; goal: string }>;
-}
-
-/**
- * AI 生成结果
- */
-export interface AIGenerateResult {
-  name?: string;
-  setting?: string;
-  plot_summary?: string;
-  worldview?: string;
-  tone?: string;
-  characters?: Array<{ name: string; background: string; dialogue_style: string; is_user: boolean }>;
-  scenes?: Array<{ name: string; description: string; goal: string; setup: string; max_rounds: number }>;
-  content?: string;
 }
 
 /**

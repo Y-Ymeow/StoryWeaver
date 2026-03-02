@@ -8,7 +8,7 @@ import type { ProviderPreset } from "@stores/types";
  * 预定义 Provider 配置
  */
 export const PROVIDER_PRESETS: Record<string, ProviderPreset> = {
-  // OpenAI
+  // OpenAI (GPT-OSS 系列使用 reasoning_effort)
   openai: {
     type: "openai",
     name: "OpenAI",
@@ -16,6 +16,7 @@ export const PROVIDER_PRESETS: Record<string, ProviderPreset> = {
     defaultModel: "",
     models: [],
     supportsThinking: false,
+    reasoningEffort: "medium", // 默认中等推理强度
   },
 
   // Gemini (Google)
@@ -40,7 +41,7 @@ export const PROVIDER_PRESETS: Record<string, ProviderPreset> = {
     thinkingParamType: "boolean",
   },
 
-  // 智谱 AI
+  // 智谱 AI (GLM-4.7/GLM-5 需要显式禁用 thinking)
   zhipu: {
     type: "zhipu",
     name: "智谱 AI",
@@ -51,6 +52,7 @@ export const PROVIDER_PRESETS: Record<string, ProviderPreset> = {
     thinkingParamKey: "thinking",
     thinkingParamType: "object",
     thinkingParamDefault: { type: "enabled" },
+    thinkingParamDisabled: { type: "disabled" },
   },
 
   // Groq

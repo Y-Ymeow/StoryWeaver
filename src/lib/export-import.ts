@@ -31,6 +31,7 @@ export interface ExportedRoomData {
     worldview: string;
     tone: string;
     current_performance_summary: string | null;
+    max_scenes: number;
   };
   scenes: Array<{
     id: string;
@@ -103,6 +104,7 @@ export async function exportRoomData(
       worldview: "",
       tone: "",
       current_performance_summary: "",
+      max_scenes: 50,
     },
     scenes: scenes.map((s) => ({
       id: s.id,
@@ -155,6 +157,7 @@ export async function exportRoomFull(room: Room): Promise<ExportedRoomData> {
     worldview: room.worldview || "",
     tone: room.tone || "",
     current_performance_summary: room.current_performance_summary || "",
+    max_scenes: room.max_scenes || 50,
   };
   return data;
 }
@@ -220,6 +223,7 @@ export async function importRoomData(
     worldview: data.room.worldview || "",
     tone: data.room.tone || "",
     current_performance_summary: data.room.current_performance_summary || "",
+    max_scenes: Math.max(1, Math.min(200, data.room.max_scenes || 50)),
   });
 
   // ID 映射（旧 ID -> 新 ID）

@@ -182,6 +182,7 @@ export const ScenePerformanceModal: FunctionalComponent<
           max_tokens: 2048,
           model,
           thinking,
+          reasoning_effort: provider.reasoning_effort,
         },
         (fullContent, thinkingContent) => {
           setStreamingContent(fullContent);

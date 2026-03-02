@@ -125,6 +125,7 @@ export const HomePage: FunctionalComponent = () => {
         worldview: data.room.worldview || "",
         tone: data.room.tone || "",
         current_performance_summary: "",
+        max_scenes: Math.max(1, Math.min(200, data.room.max_scenes || 50)),
       });
 
       // 2. 创建角色
@@ -143,8 +144,12 @@ export const HomePage: FunctionalComponent = () => {
       }
 
       // 3. 创建场景
-      for (let i = 0; i < data.scenes.length; i++) {
-        const scene = data.scenes[i];
+      const limitedScenes = data.scenes.slice(0, room.max_scenes || 50);
+      if (limitedScenes.length < data.scenes.length) {
+        alert(`场景超出上限，已仅创建前 ${limitedScenes.length} 个场景`);
+      }
+      for (let i = 0; i < limitedScenes.length; i++) {
+        const scene = limitedScenes[i];
         await createScene({
           room_id: room.id,
           name: scene.name,

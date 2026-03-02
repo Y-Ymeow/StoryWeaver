@@ -7,6 +7,7 @@ export interface Room {
   worldview: string;
   tone: string;
   current_performance_summary: string | null;
+  max_scenes: number;
   created_at: number;
   updated_at: number;
 }
@@ -80,6 +81,8 @@ export interface ProviderConfig {
   thinking_param_key?: string;
   thinking_param_type?: "boolean" | "object";
   thinking_param_default?: any;
+  thinking_param_disabled?: any; // 禁用思考时的参数值
+  reasoning_effort?: "low" | "medium" | "high"; // OpenAI reasoning_effort
 }
 
 // Provider 类型
@@ -189,4 +192,6 @@ export interface ProviderPreset {
   thinkingParamKey?: string;
   thinkingParamType?: "boolean" | "object";
   thinkingParamDefault?: any;
+  thinkingParamDisabled?: any; // 禁用思考时的参数值
+  reasoningEffort?: "low" | "medium" | "high"; // OpenAI reasoning_effort 参数
 }

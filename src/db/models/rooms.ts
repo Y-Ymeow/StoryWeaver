@@ -16,8 +16,8 @@ export async function createRoom(
   const now = Date.now();
 
   const stmt = db.prepare(
-    `INSERT INTO rooms (id, name, setting, plot_summary, worldview, tone, current_performance_summary, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO rooms (id, name, setting, plot_summary, worldview, tone, current_performance_summary, max_scenes, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   stmt.run([
     id,
@@ -27,6 +27,7 @@ export async function createRoom(
     room.worldview || "",
     room.tone || "",
     room.current_performance_summary || "",
+    Math.max(1, Math.min(200, room.max_scenes || 50)),
     now,
     now,
   ]);
@@ -45,18 +46,8 @@ export async function getAllRooms(): Promise<Room[]> {
   const results: Room[] = [];
 
   while (stmt.step()) {
-    const row = stmt.get() as any[];
-    results.push({
-      id: row[0] as string,
-      name: row[1] as string,
-      setting: row[2] as string,
-      plot_summary: row[3] as string,
-      worldview: row[4] as string,
-      tone: row[5] as string,
-      current_performance_summary: row[6] as string,
-      created_at: row[7] as number,
-      updated_at: row[8] as number,
-    });
+    const row = stmt.getAsObject() as Room;
+    results.push(row);
   }
 
   stmt.free();
@@ -77,20 +68,10 @@ export function getRoomById(id: string): Room {
     throw new Error(`房间 ${id} 不存在`);
   }
 
-  const row = stmt.get() as any[];
+  const row = stmt.getAsObject() as Room;
   stmt.free();
 
-  return {
-    id: row[0] as string,
-    name: row[1] as string,
-    setting: row[2] as string,
-    plot_summary: row[3] as string,
-    worldview: row[4] as string,
-    tone: row[5] as string,
-    current_performance_summary: row[6] as string,
-    created_at: row[7] as number,
-    updated_at: row[8] as number,
-  };
+  return row;
 }
 
 /**
@@ -130,6 +111,10 @@ export async function updateRoom(
     fields.push("current_performance_summary = ?");
     values.push(updates.current_performance_summary);
   }
+  if (updates.max_scenes !== undefined) {
+    fields.push("max_scenes = ?");
+    values.push(Math.max(1, Math.min(200, updates.max_scenes)));
+  }
 
   if (fields.length > 0) {
     fields.push("updated_at = ?");
@@ -159,7 +144,7 @@ export async function deleteRoom(id: string): Promise<void> {
   scenesStmt.bind([id]);
   const sceneIds: string[] = [];
   while (scenesStmt.step()) {
-    const row = scenesStmt.get() as any[];
+    const row = scenesStmt.getAsObject() as any[];
     sceneIds.push(row[0] as string);
   }
   scenesStmt.free();

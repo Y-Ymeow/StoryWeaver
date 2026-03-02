@@ -2,8 +2,11 @@ import { FunctionalComponent } from "preact";
 import { useState, useEffect } from "preact/hooks";
 import { Button, Modal, Input, TextArea } from "@components/ui/common";
 import type { Room } from "@stores";
-import { AIGenerate, type AIGenerateResult } from "./AIGenerate";
+import { AIGenerate } from "./AIGenerate";
+import type { AIGenerateResult } from "@/types/ai-generate";
 import type { ProviderConfig } from "@stores/types";
+
+const MAX_SCENES_LIMIT = 200;
 
 interface CharacterFormData {
   name: string;
@@ -40,6 +43,7 @@ export interface CreateRoomData {
     worldview: string;
     tone: string;
     current_performance_summary?: string;
+    max_scenes: number;
   };
   characters: CharacterFormData[];
   scenes: SceneFormData[];
@@ -62,6 +66,10 @@ export const CreateRoomWizard: FunctionalComponent<CreateRoomWizardProps> = ({
     plot_summary: initialData?.room?.plot_summary || "",
     worldview: initialData?.room?.worldview || "",
     tone: initialData?.room?.tone || "",
+    max_scenes: Math.min(
+      MAX_SCENES_LIMIT,
+      Math.max(1, initialData?.room?.max_scenes || 50),
+    ),
   });
   const [characters, setCharacters] = useState<CharacterFormData[]>([
     {
@@ -103,6 +111,7 @@ export const CreateRoomWizard: FunctionalComponent<CreateRoomWizardProps> = ({
       plot_summary: "",
       worldview: "",
       tone: "",
+      max_scenes: 50,
     });
     setCharacters([
       {
@@ -130,7 +139,18 @@ export const CreateRoomWizard: FunctionalComponent<CreateRoomWizardProps> = ({
   const handleAIResult = (result: AIGenerateResult) => {
     setIsAIGenerating(false);
     if (aiGenerateMode === "room") {
-      setRoomData({ ...roomData, ...result });
+      setRoomData({
+        ...roomData,
+        name: result.name ?? roomData.name,
+        setting: result.setting ?? roomData.setting,
+        plot_summary: result.plot_summary ?? roomData.plot_summary,
+        worldview: result.worldview ?? roomData.worldview,
+        tone: result.tone ?? roomData.tone,
+        max_scenes: Math.min(
+          MAX_SCENES_LIMIT,
+          Math.max(1, result.max_scenes ?? roomData.max_scenes),
+        ),
+      });
     } else if (aiGenerateMode === "character" && result.characters) {
       const newChars = result.characters.map((c) => ({
         name: c.name,
@@ -144,6 +164,11 @@ export const CreateRoomWizard: FunctionalComponent<CreateRoomWizardProps> = ({
         setCharacters([...characters, ...newChars]);
       }
     } else if (aiGenerateMode === "scene" && result.scenes) {
+      const remaining = roomData.max_scenes - scenes.length;
+      if (remaining <= 0) {
+        alert(`场景已达到上限（${roomData.max_scenes}）`);
+        return;
+      }
       const newScenes = result.scenes.map((s) => ({
         name: s.name,
         description: s.description,
@@ -153,7 +178,11 @@ export const CreateRoomWizard: FunctionalComponent<CreateRoomWizardProps> = ({
       }));
       // 追加而不是覆盖
       if (newScenes.length > 0) {
-        setScenes([...scenes, ...newScenes]);
+        const clipped = newScenes.slice(0, remaining);
+        setScenes([...scenes, ...clipped]);
+        if (newScenes.length > clipped.length) {
+          alert(`超出场景上限，已仅添加 ${clipped.length} 个场景`);
+        }
       }
     }
   };
@@ -174,6 +203,10 @@ export const CreateRoomWizard: FunctionalComponent<CreateRoomWizardProps> = ({
   };
 
   const handleAddScene = () => {
+    if (scenes.length >= roomData.max_scenes) {
+      alert(`场景已达到上限（${roomData.max_scenes}）`);
+      return;
+    }
     setScenes([
       ...scenes,
       { name: "", description: "", goal: "", setup: "", max_rounds: 10 },
@@ -209,6 +242,7 @@ export const CreateRoomWizard: FunctionalComponent<CreateRoomWizardProps> = ({
       plot_summary: "",
       worldview: "",
       tone: "",
+      max_scenes: 50,
     });
     setCharacters([
       {
@@ -367,6 +401,24 @@ export const CreateRoomWizard: FunctionalComponent<CreateRoomWizardProps> = ({
                   })
                 }
                 placeholder="轻松、悬疑、悲伤等"
+              />
+              <Input
+                label="场景上限"
+                type="number"
+                value={String(roomData.max_scenes)}
+                onInput={(e) =>
+                  setRoomData({
+                    ...roomData,
+                    max_scenes: Math.max(
+                      1,
+                      Math.min(
+                        MAX_SCENES_LIMIT,
+                        parseInt((e.target as HTMLInputElement).value) || 50,
+                      ),
+                    ),
+                  })
+                }
+                placeholder="50 (1-200)"
               />
             </div>
           </div>

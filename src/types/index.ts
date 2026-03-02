@@ -39,19 +39,35 @@ export type {
   ErrorBoundaryState,
   ModelButtonProps,
   ModelSelectorProps,
-  AIInputConfigProps,
   DatabaseSelectorProps,
 } from "./common";
+
+// Re-export ai-input types
+export type {
+  AIInputConfigProps,
+  AIInputMode,
+  RoomContext,
+  CharacterContext,
+  SceneContext,
+  AIStreamChunkHandler,
+  AIGenerateOptions,
+} from "./ai-input";
 
 // Re-export home types
 export type {
   CreateRoomWizardProps,
   CharacterFormData,
   SceneFormData,
-  AIGenerateProps,
   AIModelSettingsProps,
   SettingsProps,
 } from "./home";
+
+// Re-export ai-generate types
+export type {
+  AIGenerateProps,
+  AIGenerateResult,
+  AIGenerateMode,
+} from "./ai-generate";
 
 // Re-export room types
 export type {

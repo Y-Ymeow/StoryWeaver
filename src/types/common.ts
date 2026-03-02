@@ -150,14 +150,6 @@ export interface ModelSelectorProps {
 }
 
 /**
- * AIInputConfig 组件 Props
- */
-export interface AIInputConfigProps {
-  isOpen: boolean;
-  onClose: () => void;
-}
-
-/**
  * DatabaseSelector 组件 Props
  */
 export interface DatabaseSelectorProps {

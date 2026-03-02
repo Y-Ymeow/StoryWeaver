@@ -4,9 +4,11 @@
  */
 
 import { FunctionalComponent } from "preact";
-import { useState, useEffect } from "preact/hooks";
+import { useState, useEffect, useRef } from "preact/hooks";
 import { Button, Modal, Input, TextArea } from "@components/ui/common";
 import type { Room } from "@/stores";
+
+const MAX_SCENES_LIMIT = 200;
 
 interface RoomInfoEditorProps {
   isOpen: boolean;
@@ -17,6 +19,7 @@ interface RoomInfoEditorProps {
     plot_summary: string;
     worldview: string;
     tone: string;
+    max_scenes: number;
   }) => void;
   room: Room;
   isLoading?: boolean;
@@ -34,16 +37,20 @@ export const RoomInfoEditor: FunctionalComponent<RoomInfoEditorProps> = ({
   const [plotSummary, setPlotSummary] = useState("");
   const [worldview, setWorldview] = useState("");
   const [tone, setTone] = useState("");
+  const [maxScenes, setMaxScenes] = useState(50);
+  const wasOpenRef = useRef(false);
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !wasOpenRef.current) {
       setName(room.name);
       setSetting(room.setting);
       setPlotSummary(room.plot_summary || "");
       setWorldview(room.worldview || "");
       setTone(room.tone || "");
+      setMaxScenes(room.max_scenes || 50);
     }
-  }, [isOpen, room]);
+    wasOpenRef.current = isOpen;
+  }, [isOpen, room.id]);
 
   const handleSubmit = () => {
     if (!name.trim()) {
@@ -57,6 +64,7 @@ export const RoomInfoEditor: FunctionalComponent<RoomInfoEditorProps> = ({
       plot_summary: plotSummary,
       worldview,
       tone,
+      max_scenes: Math.max(1, Math.min(MAX_SCENES_LIMIT, maxScenes || 50)),
     });
   };
 
@@ -141,6 +149,28 @@ export const RoomInfoEditor: FunctionalComponent<RoomInfoEditorProps> = ({
             value={tone}
             onInput={(e) => setTone((e.target as HTMLInputElement).value)}
             placeholder="如：轻松、悬疑、悲伤"
+          />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">
+            场景上限
+          </label>
+          <Input
+            type="number"
+            value={String(maxScenes)}
+            onInput={(e) =>
+              setMaxScenes(
+                Math.max(
+                  1,
+                  Math.min(
+                    MAX_SCENES_LIMIT,
+                    parseInt((e.target as HTMLInputElement).value) || 50,
+                  ),
+                ),
+              )
+            }
+            placeholder="50 (1-200)"
           />
         </div>
       </div>
