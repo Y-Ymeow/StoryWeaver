@@ -23,7 +23,10 @@ export const PerformanceList: FunctionalComponent<PerformanceListProps> = ({
   onDeleteRound,
 }) => {
   // 从 roundPlan 中查找角色名称
-  const findCharacterNameFromRoundPlan = (characterId: string, round: number): string | undefined => {
+  const findCharacterNameFromRoundPlan = (
+    characterId: string,
+    round: number,
+  ): string | undefined => {
     if (!roundPlan) return undefined;
     const roundItem = roundPlan.find((r) => r.round === round);
     if (!roundItem) return undefined;
@@ -39,7 +42,9 @@ export const PerformanceList: FunctionalComponent<PerformanceListProps> = ({
         <div class="text-center">
           <div class="text-6xl md:text-8xl mb-2 md:mb-4">🎭</div>
           <p class="text-lg md:text-xl">准备就绪，等待开场</p>
-          <p class="text-xs md:text-sm mt-1 md:mt-2 text-gray-500">点击"开始演出"开始表演</p>
+          <p class="text-xs md:text-sm mt-1 md:mt-2 text-gray-500">
+            点击"开始演出"开始表演
+          </p>
         </div>
       </div>
     );
@@ -52,7 +57,7 @@ export const PerformanceList: FunctionalComponent<PerformanceListProps> = ({
       {Array.from({ length: maxRound }, (_, i) => i + 1).map((roundNum) => {
         const roundPerfs = performances.filter((p) => p.round === roundNum);
         const isLastRound = roundNum === maxRound;
-        
+
         return (
           <div key={roundNum}>
             {/* 轮次分隔线 */}
@@ -67,7 +72,7 @@ export const PerformanceList: FunctionalComponent<PerformanceListProps> = ({
                       onDeleteRound(roundNum);
                     }
                   }}
-                  class="opacity-0 group-hover:opacity-100 transition-opacity px-1.5 py-0.5 text-xs bg-red-500/20 text-red-400 rounded hover:bg-red-500/30"
+                  class="opacity-0 group-hover:opacity-100 max-md:opacity-100 transition-opacity px-1.5 py-0.5 text-xs bg-red-500/20 text-red-400 rounded hover:bg-red-500/30"
                   title="删除本轮"
                 >
                   ↩️
@@ -75,15 +80,20 @@ export const PerformanceList: FunctionalComponent<PerformanceListProps> = ({
               )}
               <span class="flex-1 h-px bg-dark-accent"></span>
             </div>
-            
+
             {/* 表演气泡 */}
             <div class="space-y-0.5 md:space-y-1">
               {roundPerfs.map((perf) => {
                 // 查找角色，找不到则从 roundPlan 中查找临时角色
-                let character = characters.find((c) => c.id === perf.character_id);
+                let character = characters.find(
+                  (c) => c.id === perf.character_id,
+                );
                 if (!character) {
                   // 临时角色，从 roundPlan 查找名称创建虚拟对象
-                  const charName = findCharacterNameFromRoundPlan(perf.character_id, perf.round);
+                  const charName = findCharacterNameFromRoundPlan(
+                    perf.character_id,
+                    perf.round,
+                  );
                   if (charName) {
                     character = {
                       id: perf.character_id,
@@ -101,32 +111,33 @@ export const PerformanceList: FunctionalComponent<PerformanceListProps> = ({
                   }
                 }
                 return (
-                <div
-                  key={perf.id}
-                  class="relative group"
-                  onMouseEnter={() => setHoveredId(perf.id)}
-                  onMouseLeave={() => setHoveredId(null)}
-                >
-                  <PerformanceBubble
-                    performance={perf}
-                    character={character}
-                  />
-                  {/* 单条删除按钮 */}
-                  {onDeletePerformance && hoveredId === perf.id && (
-                    <button
-                      onClick={() => {
-                        if (confirm("确定要删除这条记录吗？")) {
-                          onDeletePerformance(perf.id);
-                        }
-                      }}
-                      class="absolute top-0 right-0 p-1 text-xs bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="删除"
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-              );
+                  <div
+                    key={perf.id}
+                    class="relative group"
+                    onClick={() => {
+                      setHoveredId(hoveredId === perf.id ? null : perf.id);
+                    }}
+                  >
+                    <PerformanceBubble
+                      performance={perf}
+                      character={character}
+                    />
+                    {/* 单条删除按钮 */}
+                    {onDeletePerformance && hoveredId === perf.id && (
+                      <button
+                        onClick={() => {
+                          if (confirm("确定要删除这条记录吗？")) {
+                            onDeletePerformance(perf.id);
+                          }
+                        }}
+                        class={`absolute top-0 right-0 p-1 text-xs bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 ${hoveredId === perf.id ? "opacity-100" : "opacity-0"}  transition-opacity`}
+                        title="删除"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                );
               })}
             </div>
           </div>
@@ -135,3 +146,4 @@ export const PerformanceList: FunctionalComponent<PerformanceListProps> = ({
     </div>
   );
 };
+
