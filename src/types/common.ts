@@ -147,6 +147,9 @@ export interface ModelSelectorProps {
   providers: import("@stores").ProviderConfig[];
   initialProviderId?: string | null;
   initialModel?: string;
+  initialIsThinkingModel?: boolean;
+  initialEnableThinking?: boolean;
+  initialThinkingBudget?: number;
 }
 
 /**

@@ -182,7 +182,10 @@ export const ScenePerformanceModal: FunctionalComponent<
           max_tokens: 2048,
           model,
           thinking,
-          reasoning_effort: provider.reasoning_effort,
+          // 只在启用思考模式时才发送 reasoning_effort
+          ...(thinking?.enabled && provider.reasoning_effort
+            ? { reasoning_effort: provider.reasoning_effort }
+            : {}),
         },
         (fullContent, thinkingContent) => {
           setStreamingContent(fullContent);
@@ -320,6 +323,11 @@ export const ScenePerformanceModal: FunctionalComponent<
     onClose();
   };
 
+  // 开始演出（从 idle 切换到 performing）
+  const handleStart = useCallback(() => {
+    setStatus("performing");
+  }, []);
+
   if (!isOpen) return null;
 
   return (
@@ -344,6 +352,7 @@ export const ScenePerformanceModal: FunctionalComponent<
             <PerformanceList
               performances={performances}
               characters={characters}
+              roundPlan={roundPlan}
               onDeletePerformance={deletePerf}
               onDeleteRound={deleteRound}
             />
@@ -361,6 +370,7 @@ export const ScenePerformanceModal: FunctionalComponent<
             modelConfig={modelConfig}
             performAI={performAI}
             saveUserPerformance={saveUserPerformance}
+            onStart={handleStart}
             onEndPerformance={() => setStatus("completed")}
             onFinish={handleGenerateSummary}
             generatedSummary={generatedSummary}

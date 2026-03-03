@@ -129,34 +129,28 @@ export class AIClient {
     const thinkingType = options?.thinking?.type || "boolean";
     const thinking = options?.thinking;
 
-    if (thinking?.enabled) {
-      // 启用思考
-      if (thinkingType === "boolean") {
-        body[paramKey] = true;
-        if (thinking.budget_tokens)
-          body["thinking_budget"] = thinking.budget_tokens;
-      } else if (thinkingType === "object" && thinking.default) {
-        body[paramKey] = thinking.default;
+    if (thinking) {
+      if (thinking?.enabled) {
+        // 启用思考
+        if (thinkingType === "boolean") {
+          body[paramKey] = true;
+          if (thinking.budget_tokens)
+            body["thinking_budget"] = thinking.budget_tokens;
+        } else if (thinkingType === "object" && thinking.default) {
+          body[paramKey] = thinking.default;
+        } else {
+          body[paramKey] = true;
+        }
       } else {
-        body[paramKey] = true;
+        // 禁用思考 - 新模型必须显式发送禁用参数
+        if (thinkingType === "boolean") {
+          body[paramKey] = false;
+        } else if (thinkingType === "object" && thinking?.disabled) {
+          body[paramKey] = thinking.disabled;
+        } else if (thinkingType === "object") {
+          body[paramKey] = { type: "disabled" };
+        }
       }
-    } else {
-      // 禁用思考 - 新模型必须显式发送禁用参数
-      if (thinkingType === "boolean") {
-        body[paramKey] = false;
-      } else if (thinkingType === "object" && thinking?.disabled) {
-        body[paramKey] = thinking.disabled;
-      } else if (thinkingType === "object") {
-        body[paramKey] = { type: "disabled" };
-      }
-    }
-
-    // 处理 OpenAI reasoning_effort 参数 - 禁用思考时使用 low
-    if (options?.reasoning_effort) {
-      body.reasoning_effort = thinking?.enabled ? options.reasoning_effort : "low";
-    } else if (thinking?.enabled === false) {
-      // 如果没有配置 reasoning_effort 但禁用了思考，显式设置为 low
-      body.reasoning_effort = "low";
     }
 
     const response = await fetch(url, {
@@ -195,7 +189,7 @@ export class AIClient {
     const body: Record<string, any> = {
       model: options?.model || this.config.model || "gpt-3.5-turbo",
       messages,
-      // temperature: options?.temperature ?? 0.7,
+      temperature: options?.temperature ?? 0.7,
       // max_tokens: options?.max_tokens ?? 2048,
       stream: true,
     };
@@ -211,29 +205,30 @@ export class AIClient {
     const thinkingType = options?.thinking?.type || "boolean";
     const thinking = options?.thinking;
 
-    if (thinking?.enabled) {
-      // 启用思考
-      if (thinkingType === "boolean") {
-        body[paramKey] = true;
-      } else if (thinkingType === "object" && thinking.default) {
-        body[paramKey] = thinking.default;
-      }
-    } else {
-      // 禁用思考 - 新模型必须显式发送禁用参数
-      if (thinkingType === "boolean") {
-        body[paramKey] = false;
-      } else if (thinkingType === "object" && thinking?.disabled) {
-        body[paramKey] = thinking.disabled;
-      } else if (thinkingType === "object") {
-        body[paramKey] = { type: "disabled" };
+    if (thinking) {
+      if (thinking?.enabled) {
+        // 启用思考
+        if (thinkingType === "boolean") {
+          body[paramKey] = true;
+        } else if (thinkingType === "object" && thinking.default) {
+          body[paramKey] = thinking.default;
+        }
+      } else {
+        // 禁用思考 - 新模型必须显式发送禁用参数
+        if (thinkingType === "boolean") {
+          body[paramKey] = false;
+        } else if (thinkingType === "object" && thinking?.disabled) {
+          body[paramKey] = thinking.disabled;
+        } else if (thinkingType === "object") {
+          body[paramKey] = { type: "disabled" };
+        }
       }
     }
 
-    // 处理 OpenAI reasoning_effort 参数 - 禁用思考时使用 low
-    if (options?.reasoning_effort) {
-      body.reasoning_effort = thinking?.enabled ? options.reasoning_effort : "low";
-    } else if (thinking?.enabled === false) {
-      body.reasoning_effort = "low";
+    // 处理 OpenAI reasoning_effort 参数
+    // 只在显式配置且启用思考模式时才发送
+    if (options?.reasoning_effort && thinking && thinking?.enabled) {
+      body.reasoning_effort = options.reasoning_effort;
     }
 
     const response = await fetch(url, {
@@ -266,9 +261,7 @@ export class AIClient {
             const parsed = JSON.parse(data);
             const delta = parsed.choices?.[0]?.delta || {};
             const reasoningContent =
-              delta.reasoning_content ||
-              delta.reasoning ||
-              delta.reasoningText;
+              delta.reasoning_content || delta.reasoning || delta.reasoningText;
             if (reasoningContent) {
               yield "<think>";
               yield String(reasoningContent);

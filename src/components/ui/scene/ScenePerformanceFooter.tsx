@@ -31,12 +31,18 @@ interface ScenePerformanceFooterProps {
     provider: any,
     model: string,
     thinking: any,
-    onStream: (content: string, thinking: string) => void
+    onStream: (content: string, thinking: string) => void,
   ) => Promise<void>;
   saveUserPerformance: (
     characterId: string,
-    content: { dialogue?: string; action?: string; thought?: string; emotion?: string }
+    content: {
+      dialogue?: string;
+      action?: string;
+      thought?: string;
+      emotion?: string;
+    },
   ) => Promise<void>;
+  onStart: () => void; // 开始演出（从 idle 切换到 performing）
   onEndPerformance: () => void;
   onFinish: () => void;
   generatedSummary: string;
@@ -60,6 +66,7 @@ export const ScenePerformanceFooter: FunctionalComponent<
   modelConfig,
   performAI,
   saveUserPerformance,
+  onStart,
   onEndPerformance,
   onFinish,
   generatedSummary,
@@ -70,31 +77,43 @@ export const ScenePerformanceFooter: FunctionalComponent<
 }) => {
   // 用户输入状态
   const [isProcessing, setIsProcessing] = useState(false);
-  const [userInputs, setUserInputs] = useState<Record<string, {
-    dialogue: string;
-    action: string;
-    thought: string;
-    emotion: string;
-  }>>({});
+  const [userInputs, setUserInputs] = useState<
+    Record<
+      string,
+      {
+        dialogue: string;
+        action: string;
+        thought: string;
+        emotion: string;
+      }
+    >
+  >({});
 
   // 计算属性
   const isUserTurn = currentPerformer?.isUser ?? false;
   const isAiTurn = currentPerformer ? !currentPerformer.isUser : false;
-  const isAllRoundsComplete = !currentPerformer && currentRound >= totalRounds && isLoaded;
+  const isAllRoundsComplete =
+    !currentPerformer && currentRound >= totalRounds && isLoaded;
 
   // 当前台词建议
   const currentLineHint = (() => {
     if (!currentPerformer || !currentRoundPlan) return null;
-    const turns: any[] = currentRoundPlan?.turns || currentRoundPlan?.performances || [];
-    const turn = turns.find((t) => t.characterName === currentPerformer.characterName);
+    const turns: any[] =
+      currentRoundPlan?.turns || currentRoundPlan?.performances || [];
+    const turn = turns.find(
+      (t) => t.characterName === currentPerformer.characterName,
+    );
     return turn?.lineHint;
   })();
 
   // 是否临时角色
   const isTempPerformer = (() => {
     if (!currentPerformer || !currentRoundPlan) return false;
-    const turns: any[] = currentRoundPlan?.turns || currentRoundPlan?.performances || [];
-    const turn = turns.find((t) => t.characterName === currentPerformer.characterName);
+    const turns: any[] =
+      currentRoundPlan?.turns || currentRoundPlan?.performances || [];
+    const turn = turns.find(
+      (t) => t.characterName === currentPerformer.characterName,
+    );
     return turn?.isTemp;
   })();
 
@@ -111,19 +130,21 @@ export const ScenePerformanceFooter: FunctionalComponent<
       const maxRetries = 3;
 
       while (retryCount < maxRetries) {
+        console.log(modelConfig);
         try {
           await performAI(
             currentPerformer,
             modelConfig.provider,
             modelConfig.model,
             modelConfig.thinking,
-            () => {} // 流式回调由父组件管理
+            () => {}, // 流式回调由父组件管理
           );
           setIsProcessing(false);
           return;
         } catch (error: any) {
           retryCount++;
-          const isRateLimit = error?.status === 429 || error?.message?.includes("429");
+          const isRateLimit =
+            error?.status === 429 || error?.message?.includes("429");
           if (isRateLimit && retryCount < maxRetries) {
             const waitTime = Math.pow(2, retryCount) * 1000;
             console.log(`429 限流，等待 ${waitTime}ms`);
@@ -146,7 +167,10 @@ export const ScenePerformanceFooter: FunctionalComponent<
   const handleUserInput = useCallback(async () => {
     if (!currentPerformer || !currentPerformer.isUser) return;
 
-    const character = findCharacterByName(currentPerformer.characterName, characters);
+    const character = findCharacterByName(
+      currentPerformer.characterName,
+      characters,
+    );
     if (!character) return;
 
     const input = userInputs[character.id];
@@ -227,17 +251,29 @@ export const ScenePerformanceFooter: FunctionalComponent<
         </div>
         <div class="flex gap-2 justify-end">
           {status === "idle" && (
-            <Button onClick={handleAIPerform} isLoading={isProcessing} size="sm">
-              🎬 开始
+            <Button
+              onClick={isUserTurn ? onStart : handleAIPerform}
+              isLoading={isProcessing}
+              size="sm"
+            >
+              {isUserTurn ? "🎬 开始（用户回合）" : "🎬 开始"}
             </Button>
           )}
           {status === "performing" && isAiTurn && !isStreaming && (
-            <Button onClick={handleAIPerform} isLoading={isProcessing || isStreaming} size="sm">
+            <Button
+              onClick={handleAIPerform}
+              isLoading={isProcessing || isStreaming}
+              size="sm"
+            >
               🎬 继续
             </Button>
           )}
           {status === "performing" && isUserTurn && (
-            <Button onClick={handleUserInput} isLoading={isProcessing} size="sm">
+            <Button
+              onClick={handleUserInput}
+              isLoading={isProcessing}
+              size="sm"
+            >
               ✓ 确认
             </Button>
           )}
@@ -247,7 +283,12 @@ export const ScenePerformanceFooter: FunctionalComponent<
             </Button>
           )}
           {status === "completed" && !generatedSummary && (
-            <Button onClick={onFinish} isLoading={isProcessing} variant="primary" size="sm">
+            <Button
+              onClick={onFinish}
+              isLoading={isProcessing}
+              variant="primary"
+              size="sm"
+            >
               📝 生成总结
             </Button>
           )}
@@ -307,3 +348,4 @@ export const ScenePerformanceFooter: FunctionalComponent<
     </div>
   );
 };
+

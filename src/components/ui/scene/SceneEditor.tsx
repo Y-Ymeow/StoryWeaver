@@ -225,7 +225,10 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
         temperature: 0.7,
         max_tokens: 2048,
         thinking,
-        reasoning_effort: provider.reasoning_effort,
+        // 只在启用思考模式时才发送 reasoning_effort
+        ...(thinking?.enabled && provider.reasoning_effort
+          ? { reasoning_effort: provider.reasoning_effort }
+          : {}),
         onStream: (content, thinkingContent) => {
           setSceneStreamingContent(content);
           setSceneThinkingContent(thinkingContent);
@@ -371,7 +374,10 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
         temperature: 0.7,
         max_tokens: 4096,
         thinking,
-        reasoning_effort: provider.reasoning_effort,
+        // 只在启用思考模式时才发送 reasoning_effort
+        ...(thinking?.enabled && provider.reasoning_effort
+          ? { reasoning_effort: provider.reasoning_effort }
+          : {}),
         onStream: (content, thinkingContent) => {
           setRoundStreamingContent(content);
           setRoundThinkingContent(thinkingContent);

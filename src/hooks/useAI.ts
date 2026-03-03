@@ -130,67 +130,70 @@ export interface UseAIReturn {
 export function useAI(): UseAIReturn {
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const generate = useCallback(async <T = any>(
-    provider: ProviderConfig,
-    model: string,
-    messages: { role: string; content: string }[],
-    options: AIGenerateOptions = {},
-  ): Promise<T> => {
-    setIsGenerating(true);
+  const generate = useCallback(
+    async <T = any>(
+      provider: ProviderConfig,
+      model: string,
+      messages: { role: string; content: string }[],
+      options: AIGenerateOptions = {},
+    ): Promise<T> => {
+      setIsGenerating(true);
 
-    try {
-      const client = createClient(provider);
-      
-      // 如果有 onStream 回调，使用流式
-      if (options.onStream) {
-        const stream = client.chatStream(messages, {
-          temperature: options.temperature ?? 0.7,
-          max_tokens: options.max_tokens ?? 4096,
-          model: options.model || model,
-          thinking: options.thinking,
-          reasoning_effort: options.reasoning_effort,
-        });
+      try {
+        const client = createClient(provider);
 
-        let fullContent = "";
-        let thinkingContent = "";
-        let inThinking = false;
+        // 如果有 onStream 回调，使用流式
+        if (options.onStream) {
+          const stream = client.chatStream(messages, {
+            temperature: options.temperature ?? 0.7,
+            max_tokens: options.max_tokens ?? 4096,
+            model: options.model || model,
+            thinking: options.thinking,
+            reasoning_effort: options.reasoning_effort,
+          });
 
-        for await (const chunk of stream) {
-          if (chunk.includes("<think>")) {
-            inThinking = true;
-            continue;
+          let fullContent = "";
+          let thinkingContent = "";
+          let inThinking = false;
+
+          for await (const chunk of stream) {
+            if (chunk.includes("<think>")) {
+              inThinking = true;
+              continue;
+            }
+            if (chunk.includes("</think>")) {
+              inThinking = false;
+              continue;
+            }
+            if (inThinking) {
+              thinkingContent += chunk;
+            } else {
+              fullContent += chunk;
+            }
+            options.onStream(fullContent, thinkingContent);
           }
-          if (chunk.includes("</think>")) {
-            inThinking = false;
-            continue;
-          }
-          if (inThinking) {
-            thinkingContent += chunk;
-          } else {
-            fullContent += chunk;
-          }
-          options.onStream(fullContent, thinkingContent);
+
+          return safeParseJSON<T>(fullContent);
+        } else {
+          // 普通请求
+          const response = await client.chat(messages, {
+            temperature: options.temperature ?? 0.7,
+            max_tokens: options.max_tokens ?? 4096,
+            model: options.model || model,
+            thinking: options.thinking,
+            reasoning_effort: options.reasoning_effort,
+          });
+
+          const data = safeParseJSON<T>(response.content);
+
+          return data as T;
         }
-
-        return safeParseJSON<T>(fullContent);
-      } else {
-        // 普通请求
-        const response = await client.chat(messages, {
-          temperature: options.temperature ?? 0.7,
-          max_tokens: options.max_tokens ?? 4096,
-          model: options.model || model,
-          thinking: options.thinking,
-          reasoning_effort: options.reasoning_effort,
-        });
-
-        const data = safeParseJSON<T>(response.content);
-
-        return data as T;
+      } finally {
+        setIsGenerating(false);
       }
-    } finally {
-      setIsGenerating(false);
-    }
-  }, []);
+    },
+    [],
+  );
 
   const cancel = () => {
     setIsGenerating(false);

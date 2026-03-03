@@ -150,7 +150,10 @@ export const AIInputConfig: FunctionalComponent<AIInputConfigProps> = ({
         temperature: 0.7,
         max_tokens: 4096,
         thinking,
-        reasoning_effort: selectedProvider.reasoning_effort,
+        // 只在启用思考模式时才发送 reasoning_effort
+        ...(thinking?.enabled && selectedProvider.reasoning_effort
+          ? { reasoning_effort: selectedProvider.reasoning_effort }
+          : {}),
         model: selectedModel || undefined,
       });
 

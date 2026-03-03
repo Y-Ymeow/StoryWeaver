@@ -49,20 +49,33 @@ export function getNextPerformer(
 ): Performer | null {
   const currentRoundPlan = roundPlan.find((r) => r.round === currentRound);
   const currentRoundPerfs = performances.filter((p) => p.round === currentRound);
-  
-  // 获取已表演的角色名称列表
-  const performedCharNames = currentRoundPerfs.map((p) => {
-    const char = characters.find((c) => c.id === p.character_id);
-    return char?.name;
-  }).filter(Boolean);
+
+  // 获取已表演的角色信息（名称和ID）
+  const performedCharNames = new Set<string>();
+  const performedCharIds = new Set<string>();
+
+  for (const perf of currentRoundPerfs) {
+    // 记录已表演的 characterId
+    performedCharIds.add(perf.character_id);
+    // 尝试从 characters 列表获取角色名
+    const char = characters.find((c) => c.id === perf.character_id);
+    if (char?.name) {
+      performedCharNames.add(char.name);
+    }
+  }
 
   // 兼容旧版数据结构（performances 字段）和新版（turns 字段）
   const turns = (currentRoundPlan as any)?.turns || (currentRoundPlan as any)?.performances || [];
-  
+
   if (currentRoundPlan && turns.length > 0) {
     // 按顺序找第一个还没表演的
     for (const performer of turns) {
-      if (!performedCharNames.includes(performer.characterName || performer.characterId)) {
+      // 通过 characterId 判断是否已表演（支持临时角色）
+      // 或通过 characterName 判断（兼容旧数据）
+      const alreadyPerformed = performedCharIds.has(performer.characterId) ||
+        performedCharNames.has(performer.characterName);
+
+      if (!alreadyPerformed) {
         return {
           characterId: performer.characterId,
           characterName: performer.characterName,

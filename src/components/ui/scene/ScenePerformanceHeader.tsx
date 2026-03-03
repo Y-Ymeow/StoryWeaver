@@ -41,7 +41,9 @@ export const ScenePerformanceHeader: FunctionalComponent<
 }) => {
   // 内部管理模型选择状态
   const [providers, setProviders] = useState<any[]>([]);
-  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
+  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(
+    null,
+  );
   const [selectedModel, setSelectedModel] = useState("");
   const [isThinkingModel, setIsThinkingModel] = useState(false);
   const [enableThinking, setEnableThinking] = useState(false);
@@ -58,9 +60,7 @@ export const ScenePerformanceHeader: FunctionalComponent<
       const model = active.custom_models?.[0] || active.model;
       if (model) setSelectedModel(model);
       setIsThinkingModel(active.supports_thinking || false);
-      setEnableThinking(
-        active.supports_thinking && active.thinking_param_key ? true : false,
-      );
+      setEnableThinking(false); // 默认不启用思考，让用户手动开启
     }
   }, []);
 
@@ -78,12 +78,17 @@ export const ScenePerformanceHeader: FunctionalComponent<
         default: provider.thinking_param_default,
         budget_tokens: thinkingBudget,
       };
-    } else if (provider.supports_thinking) {
-      thinking = { type: "disabled" };
     }
 
     onModelConfigChange({ provider, model: selectedModel, thinking });
-  }, [providers, selectedProviderId, selectedModel, enableThinking, thinkingBudget, onModelConfigChange]);
+  }, [
+    providers,
+    selectedProviderId,
+    selectedModel,
+    enableThinking,
+    thinkingBudget,
+    onModelConfigChange,
+  ]);
 
   return (
     <div class="shrink-0 p-3 md:p-4 border-b border-dark-accent">
@@ -165,3 +170,4 @@ export const ScenePerformanceHeader: FunctionalComponent<
     </div>
   );
 };
+

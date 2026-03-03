@@ -10,6 +10,7 @@ import type { Character, Performance } from "@/stores";
 interface PerformanceListProps {
   performances: Performance[];
   characters: Character[];
+  roundPlan?: any[]; // 轮次计划，用于查找临时角色名称
   onDeletePerformance?: (id: string) => void;
   onDeleteRound?: (round: number) => void;
 }
@@ -17,9 +18,19 @@ interface PerformanceListProps {
 export const PerformanceList: FunctionalComponent<PerformanceListProps> = ({
   performances,
   characters,
+  roundPlan,
   onDeletePerformance,
   onDeleteRound,
 }) => {
+  // 从 roundPlan 中查找角色名称
+  const findCharacterNameFromRoundPlan = (characterId: string, round: number): string | undefined => {
+    if (!roundPlan) return undefined;
+    const roundItem = roundPlan.find((r) => r.round === round);
+    if (!roundItem) return undefined;
+    const turns = roundItem?.turns || roundItem?.performances || [];
+    const turn = turns.find((t: any) => t.characterId === characterId);
+    return turn?.characterName;
+  };
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   if (performances.length === 0) {
@@ -67,7 +78,29 @@ export const PerformanceList: FunctionalComponent<PerformanceListProps> = ({
             
             {/* 表演气泡 */}
             <div class="space-y-0.5 md:space-y-1">
-              {roundPerfs.map((perf) => (
+              {roundPerfs.map((perf) => {
+                // 查找角色，找不到则从 roundPlan 中查找临时角色
+                let character = characters.find((c) => c.id === perf.character_id);
+                if (!character) {
+                  // 临时角色，从 roundPlan 查找名称创建虚拟对象
+                  const charName = findCharacterNameFromRoundPlan(perf.character_id, perf.round);
+                  if (charName) {
+                    character = {
+                      id: perf.character_id,
+                      name: charName,
+                      background: `${charName}（临时角色）`,
+                      dialogue_style: "自然口语",
+                      is_user: false,
+                      memory: null,
+                      type: "ai",
+                      room_id: "",
+                      order: 0,
+                      created_at: 0,
+                      updated_at: 0,
+                    };
+                  }
+                }
+                return (
                 <div
                   key={perf.id}
                   class="relative group"
@@ -76,7 +109,7 @@ export const PerformanceList: FunctionalComponent<PerformanceListProps> = ({
                 >
                   <PerformanceBubble
                     performance={perf}
-                    character={characters.find((c) => c.id === perf.character_id)}
+                    character={character}
                   />
                   {/* 单条删除按钮 */}
                   {onDeletePerformance && hoveredId === perf.id && (
@@ -93,7 +126,8 @@ export const PerformanceList: FunctionalComponent<PerformanceListProps> = ({
                     </button>
                   )}
                 </div>
-              ))}
+              );
+              })}
             </div>
           </div>
         );

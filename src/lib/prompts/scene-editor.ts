@@ -114,10 +114,15 @@ export function buildRoundPlanPrompt(
 【场景】${scene.name}：${scene.description || "无"}
 【场景目标】${scene.goal || "推进剧情"}
 【需要生成轮次】${scene.maxRounds} 场
-【用户角色】${userChars.map((c) => c.name).join(", ") || "无"}
-【AI角色】${aiChars.map((c) => c.name).join(", ") || "无"}
+【主要角色-用户】${userChars.map((c) => c.name).join(", ") || "无"}
+【主要角色-AI】${aiChars.map((c) => c.name).join(", ") || "无"}
 ${keywordsHint}
 请设计 ${scene.maxRounds} 场演出计划。
+
+角色使用规则：
+- 优先使用上述主要角色推动核心剧情
+- 当剧情需要补充人物（如路人、服务员、NPC、背景角色等）时，可生成临时角色（isTemp=true, characterId以temp_开头）
+- 临时角色用于丰富场景层次、提供信息、制造冲突或推动特定情节，不要仅因为角色多就排斥临时角色
 
 重要规则：
 1. 每轮必须有明确变化点，不能只是重复确认信息

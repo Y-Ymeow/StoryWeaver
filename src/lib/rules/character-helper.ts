@@ -20,14 +20,17 @@ export function findOrCreateCharacter(
 ): Character {
   // 尝试在角色表中查找
   const character = characters.find((c) => c.name === name);
-  
+
   if (character) {
     return character;
   }
-  
+
   // 找不到，创建临时角色对象
+  // 对于临时角色，优先使用传入的 characterId，保证 ID 一致性
   return {
-    id: performerInfo?.characterId || `temp_${Date.now()}`,
+    id: performerInfo?.isTemp && performerInfo?.characterId
+      ? performerInfo.characterId
+      : (performerInfo?.characterId || `temp_${Date.now()}`),
     name,
     background: performerInfo?.isTemp ? `${name}（临时角色）` : name,
     dialogue_style: "自然口语",

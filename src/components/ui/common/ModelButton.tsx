@@ -50,6 +50,9 @@ export const ModelButton: FunctionalComponent<ModelButtonProps> = ({
         providers={providers}
         initialProviderId={selectedProviderId}
         initialModel={selectedModel}
+        initialIsThinkingModel={isThinkingModel}
+        initialEnableThinking={enableThinking}
+        initialThinkingBudget={thinkingBudget}
       />
     </>
   );
