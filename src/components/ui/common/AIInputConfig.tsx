@@ -9,10 +9,7 @@ import {
   ModelButton,
 } from "@components/ui/common";
 import type { AIInputConfigProps, AIInputMode } from "@/types/ai-input";
-import {
-  buildAIInputPrompt,
-  getSystemPrompt,
-} from "@/lib/prompts/ai-input";
+import { buildAIInputPrompt, getSystemPrompt } from "@/lib/prompts/ai-input";
 import { createClient } from "@/lib/openai/client";
 
 export const AIInputConfig: FunctionalComponent<AIInputConfigProps> = ({
@@ -44,7 +41,9 @@ export const AIInputConfig: FunctionalComponent<AIInputConfigProps> = ({
   const [streamingContent, setStreamingContent] = useState("");
   const [thinkingContent, setThinkingContent] = useState("");
   const [generationCount, setGenerationCount] = useState(3);
-  const [selectedCharacterNames, setSelectedCharacterNames] = useState<string[]>([]);
+  const [selectedCharacterNames, setSelectedCharacterNames] = useState<
+    string[]
+  >([]);
   const [selectedSceneNames, setSelectedSceneNames] = useState<string[]>([]);
   const resultEndRef = useRef<HTMLDivElement>(null);
   const wasOpenRef = useRef(false);
@@ -161,19 +160,17 @@ export const AIInputConfig: FunctionalComponent<AIInputConfigProps> = ({
       let inThinking = false;
 
       for await (const chunk of stream) {
-        if (chunk.includes("<think>")) {
+        if (chunk.thinking !== null) {
           inThinking = true;
-          continue;
         }
-        if (chunk.includes("</think>")) {
+        if (chunk.thinking === null) {
           inThinking = false;
-          continue;
         }
 
         if (inThinking) {
-          setThinkingContent((prev) => prev + chunk);
+          setThinkingContent((prev) => prev + chunk.content);
         } else {
-          fullContent += chunk;
+          fullContent += chunk.content;
           setStreamingContent(fullContent);
         }
       }
@@ -292,7 +289,10 @@ export const AIInputConfig: FunctionalComponent<AIInputConfigProps> = ({
                 setGenerationCount(
                   Math.max(
                     1,
-                    Math.min(10, parseInt((e.target as HTMLInputElement).value) || 1),
+                    Math.min(
+                      10,
+                      parseInt((e.target as HTMLInputElement).value) || 1,
+                    ),
                   ),
                 )
               }

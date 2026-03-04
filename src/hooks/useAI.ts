@@ -157,18 +157,16 @@ export function useAI(): UseAIReturn {
           let inThinking = false;
 
           for await (const chunk of stream) {
-            if (chunk.includes("<think>")) {
+            if (chunk.thinking !== null) {
               inThinking = true;
-              continue;
             }
-            if (chunk.includes("</think>")) {
+            if (chunk.thinking === null) {
               inThinking = false;
-              continue;
             }
             if (inThinking) {
-              thinkingContent += chunk;
+              thinkingContent += chunk.thinking;
             } else {
-              fullContent += chunk;
+              fullContent += chunk.content;
             }
             options.onStream(fullContent, thinkingContent);
           }

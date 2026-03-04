@@ -32,61 +32,62 @@ export function useAIChatStream() {
   const [isStreaming, setIsStreaming] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  const chatStream = useCallback(async (
-    provider: ProviderConfig,
-    messages: { role: string; content: string }[],
-    options: AIChatStreamOptions = {},
-    onChunk?: (content: string, thinkingContent: string) => void,
-  ): Promise<AIChatStreamResult> => {
-    setIsStreaming(true);
-    abortControllerRef.current = new AbortController();
+  const chatStream = useCallback(
+    async (
+      provider: ProviderConfig,
+      messages: { role: string; content: string }[],
+      options: AIChatStreamOptions = {},
+      onChunk?: (content: string, thinkingContent: string) => void,
+    ): Promise<AIChatStreamResult> => {
+      setIsStreaming(true);
+      abortControllerRef.current = new AbortController();
 
-    try {
-      const client = createClient(provider);
-      const stream = client.chatStream(messages, {
-        temperature: options.temperature ?? 0.7,
-        max_tokens: options.max_tokens ?? 2048,
-        model: options.model,
-        thinking: options.thinking,
-        reasoning_effort: options.reasoning_effort,
-      });
+      try {
+        const client = createClient(provider);
+        const stream = client.chatStream(messages, {
+          temperature: options.temperature ?? 0.7,
+          max_tokens: options.max_tokens ?? 2048,
+          model: options.model,
+          thinking: options.thinking,
+          reasoning_effort: options.reasoning_effort,
+        });
 
-      let fullContent = "";
-      let thinkingContent = "";
-      let inThinking = false;
+        let fullContent = "";
+        let thinkingContent = "";
+        let inThinking = false;
 
-      for await (const chunk of stream) {
-        // 检查是否被取消
-        if (abortControllerRef.current?.signal.aborted) {
-          break;
+        for await (const chunk of stream) {
+          // 检查是否被取消
+          if (abortControllerRef.current?.signal.aborted) {
+            break;
+          }
+          // 检测思考标签
+          if (chunk.thinking !== null) {
+            inThinking = true;
+          }
+
+          if (chunk.thinking === null) {
+            inThinking = false;
+          }
+
+          if (inThinking) {
+            thinkingContent += chunk.thinking;
+          } else {
+            fullContent += chunk.content;
+          }
+
+          // 通知调用者当前进度
+          onChunk?.(fullContent, thinkingContent);
         }
 
-        // 检测思考标签
-        if (chunk.includes("<think>")) {
-          inThinking = true;
-          continue;
-        }
-        if (chunk.includes("</think>")) {
-          inThinking = false;
-          continue;
-        }
-
-        if (inThinking) {
-          thinkingContent += chunk;
-        } else {
-          fullContent += chunk;
-        }
-
-        // 通知调用者当前进度
-        onChunk?.(fullContent, thinkingContent);
+        return { content: fullContent, thinkingContent };
+      } finally {
+        setIsStreaming(false);
+        abortControllerRef.current = null;
       }
-
-      return { content: fullContent, thinkingContent };
-    } finally {
-      setIsStreaming(false);
-      abortControllerRef.current = null;
-    }
-  }, []);
+    },
+    [],
+  );
 
   const cancel = useCallback(() => {
     abortControllerRef.current?.abort();

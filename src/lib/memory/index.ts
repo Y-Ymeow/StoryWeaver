@@ -6,6 +6,7 @@
 
 import { createClient } from "@/providers";
 import type { Character, Room, Scene, Performance } from "@stores";
+import type { ProviderConfig } from "@/stores/types";
 import {
   buildSceneSummaryPrompt,
   getSceneSummarySystemPrompt,
@@ -132,26 +133,41 @@ export async function generateSceneSummary(
   scene: Scene,
   performances: Performance[],
   characters: Character[],
+  modelConfig?: {
+    provider: ProviderConfig;
+    model: string;
+  },
 ): Promise<string> {
   if (performances.length === 0) {
     return scene.summary || "";
   }
 
-  // 获取活跃的 provider 配置
-  const providersData = localStorage.getItem("ai-providers");
-  if (!providersData) {
-    return generateBasicSummary(scene, performances, characters);
-  }
-
-  const providers = JSON.parse(providersData);
-  const activeProvider = providers.find((p: any) => p.is_active);
-  if (!activeProvider) {
-    return generateBasicSummary(scene, performances, characters);
-  }
-
   try {
-    const client = createClient(activeProvider);
-    const model = activeProvider.custom_models?.[0] || activeProvider.model;
+    let provider = modelConfig?.provider;
+    let model = modelConfig?.model;
+
+    // 优先使用当前演出已选模型；没有则回退到激活 provider
+    if (!provider || !model) {
+      const providersData = localStorage.getItem("ai-providers");
+      if (!providersData) {
+        return generateBasicSummary(scene, performances, characters);
+      }
+
+      const providers = JSON.parse(providersData);
+      const activeProvider = providers.find((p: any) => p.is_active);
+      if (!activeProvider) {
+        return generateBasicSummary(scene, performances, characters);
+      }
+
+      provider = activeProvider;
+      model = activeProvider.custom_models?.[0] || activeProvider.model;
+    }
+
+    if (!provider || !model) {
+      return generateBasicSummary(scene, performances, characters);
+    }
+
+    const client = createClient(provider);
 
     const messages = [
       { role: "system", content: getSceneSummarySystemPrompt() },
@@ -168,7 +184,7 @@ export async function generateSceneSummary(
       model,
     });
     for await (const chunk of stream) {
-      summary += chunk;
+      summary += chunk.content;
     }
 
     return (

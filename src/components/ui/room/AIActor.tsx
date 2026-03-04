@@ -7,7 +7,10 @@ import { useState } from "preact/hooks";
 import { Card } from "@components/ui/common";
 import type { ProviderConfig } from "@stores/types";
 import { createClient } from "@/lib/openai/client";
-import { getCharacterPerformanceSystemPrompt, buildCharacterPerformancePrompt } from "@/lib/prompts/performance";
+import {
+  getCharacterPerformanceSystemPrompt,
+  buildCharacterPerformancePrompt,
+} from "@/lib/prompts/performance";
 import type { Room, Scene, Character, Performance } from "@/stores";
 
 interface AIActorProps {
@@ -22,7 +25,11 @@ interface AIActorProps {
   isThinkingModel: boolean;
   enableThinking: boolean;
   thinkingBudget: number;
-  onProgress: (data: { streaming: string; thinking: string; done: boolean }) => void;
+  onProgress: (data: {
+    streaming: string;
+    thinking: string;
+    done: boolean;
+  }) => void;
   onComplete: (content: Record<string, string>) => void;
   onError: (error: Error) => void;
 }
@@ -71,17 +78,25 @@ export const AIActor: FunctionalComponent<AIActorProps> = ({
   const perform = async () => {
     try {
       const client = createClient(provider);
-      const thinking = isThinkingModel && provider.supports_thinking
-        ? {
-            enabled: enableThinking,
-            param_key: provider.thinking_param_key || "thinking",
-            type: provider.thinking_param_type || "boolean",
-            default: provider.thinking_param_default,
-            budget_tokens: thinkingBudget,
-          }
-        : undefined;
+      const thinking =
+        isThinkingModel && provider.supports_thinking
+          ? {
+              enabled: enableThinking,
+              param_key: provider.thinking_param_key || "thinking",
+              type: provider.thinking_param_type || "boolean",
+              default: provider.thinking_param_default,
+              budget_tokens: thinkingBudget,
+            }
+          : undefined;
 
-      const prompt = buildCharacterPerformancePrompt(room, scene, character, allCharacters, performances, roundNum);
+      const prompt = buildCharacterPerformancePrompt(
+        room,
+        scene,
+        character,
+        allCharacters,
+        performances,
+        roundNum,
+      );
       const messages = [
         { role: "system", content: getCharacterPerformanceSystemPrompt() },
         { role: "user", content: prompt },
@@ -98,22 +113,28 @@ export const AIActor: FunctionalComponent<AIActorProps> = ({
       let inThinking = false;
 
       for await (const chunk of stream) {
-        if (chunk.includes("<think>") || chunk.includes("<think>")) {
+        if (chunk.thinking !== null) {
           inThinking = true;
-          continue;
         }
-        if (chunk.includes("</think>") || chunk.includes("</think>")) {
+        if (chunk.thinking === null) {
           inThinking = false;
-          continue;
         }
 
         if (inThinking) {
-          setThinkingContent((prev) => prev + chunk);
-          onProgress({ streaming: fullContent, thinking: thinkingContent + chunk, done: false });
+          setThinkingContent((prev) => prev + chunk.thinking);
+          onProgress({
+            streaming: fullContent,
+            thinking: thinkingContent + chunk.thinking,
+            done: false,
+          });
         } else {
-          fullContent += chunk;
+          fullContent += chunk.content;
           setStreamingContent(fullContent);
-          onProgress({ streaming: fullContent, thinking: thinkingContent, done: false });
+          onProgress({
+            streaming: fullContent,
+            thinking: thinkingContent,
+            done: false,
+          });
         }
       }
 
@@ -123,7 +144,8 @@ export const AIActor: FunctionalComponent<AIActorProps> = ({
       if (parsed.action) contentObj.action = parsed.action;
       if (parsed.thought) contentObj.thought = parsed.thought;
       if (parsed.emotion) contentObj.emotion = parsed.emotion;
-      if (Object.keys(contentObj).length === 0) contentObj.dialogue = fullContent;
+      if (Object.keys(contentObj).length === 0)
+        contentObj.dialogue = fullContent;
 
       onComplete(contentObj);
     } catch (error) {

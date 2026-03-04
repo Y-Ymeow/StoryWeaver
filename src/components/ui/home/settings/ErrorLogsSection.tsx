@@ -211,6 +211,11 @@ export const ErrorLogsSection: FunctionalComponent<ErrorLogsSectionProps> = ({
                       <div class="text-sm text-gray-200 break-all">
                         {log.message}
                       </div>
+                      {log.location && (
+                        <div class="mt-1 text-xs text-cyan-300 break-all">
+                          📍 {log.location}
+                        </div>
+                      )}
                       {log.stack && (
                         <details class="mt-2">
                           <summary class="text-xs text-gray-400 cursor-pointer hover:text-gray-300">

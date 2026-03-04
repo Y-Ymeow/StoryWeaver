@@ -46,6 +46,7 @@ interface ScenePerformanceFooterProps {
   onEndPerformance: () => void;
   onFinish: () => void;
   generatedSummary: string;
+  isProcessingSummary?: boolean;
   // 流式显示状态（由父组件控制）
   isStreaming?: boolean;
   streamingContent?: string;
@@ -70,6 +71,7 @@ export const ScenePerformanceFooter: FunctionalComponent<
   onEndPerformance,
   onFinish,
   generatedSummary,
+  isProcessingSummary = false,
   isStreaming = false,
   streamingContent = "",
   thinkingContent = "",
@@ -119,8 +121,13 @@ export const ScenePerformanceFooter: FunctionalComponent<
 
   // 执行 AI 表演
   const handleAIPerform = useCallback(async () => {
-    if (!currentPerformer || !modelConfig) {
+    if (!modelConfig) {
       alert("请先选择模型");
+      return;
+    }
+
+    if (!currentPerformer) {
+      alert("没有安排轮次，请先创建轮次");
       return;
     }
 
@@ -207,7 +214,7 @@ export const ScenePerformanceFooter: FunctionalComponent<
 
           {/* 当前轮到谁 */}
           {status === "performing" && (
-            <div class="flex flex-col items-center gap-2 flex-wrap">
+            <div class="flex flex-col gap-2 flex-wrap">
               <span class="text-xs md:text-sm text-gray-300">
                 {currentActor ? (
                   <>
@@ -285,7 +292,7 @@ export const ScenePerformanceFooter: FunctionalComponent<
           {status === "completed" && !generatedSummary && (
             <Button
               onClick={onFinish}
-              isLoading={isProcessing}
+              isLoading={isProcessingSummary}
               variant="primary"
               size="sm"
             >
@@ -327,7 +334,7 @@ export const ScenePerformanceFooter: FunctionalComponent<
       {/* AI 生成中提示 */}
       {status === "performing" && (thinkingContent || streamingContent) && (
         <div class="px-2 md:px-4 py-2 border-t border-dark-accent/50">
-          {thinkingContent && isThinkingEnabled && (
+          {thinkingContent && (
             <div class="bg-purple-900/20 rounded p-2 mb-2">
               <div class="text-xs text-purple-300 mb-1">🧠 思考中...</div>
               <div class="text-xs text-purple-200/70 whitespace-pre-wrap max-h-16 md:max-h-20 overflow-y-auto font-mono">

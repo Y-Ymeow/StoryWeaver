@@ -20,10 +20,7 @@ import { updateScene } from "@/db/models/scenes";
 import { generateSceneSummary } from "@/lib/memory";
 import { parseMultiplePerformances } from "@/lib/parser";
 import { buildSceneRoundPrompt } from "@/lib/prompts/scene";
-import {
-  getNextPerformer,
-  isRoundComplete,
-} from "@/lib/rules/performance";
+import { getNextPerformer, isRoundComplete } from "@/lib/rules/performance";
 import { findOrCreateCharacter } from "@/lib/rules/character-helper";
 
 interface ScenePerformanceModalProps {
@@ -127,136 +124,176 @@ export const ScenePerformanceModal: FunctionalComponent<
 
   const currentRoundPlan = roundPlan.find((r) => r.round === currentRound);
 
-  const progress = totalRounds > 0 && isLoaded
-    ? Math.round((currentRound / totalRounds) * 100)
-    : 0;
+  const progress =
+    totalRounds > 0 && isLoaded
+      ? Math.round((currentRound / totalRounds) * 100)
+      : 0;
 
   // ===== AI 表演核心逻辑 =====
-  const performAI = useCallback(async (
-    performer: NonNullable<ReturnType<typeof getNextPerformer>>,
-    provider: any,
-    model: string,
-    thinking: any,
-    onStream?: (content: string, thinking: string) => void,
-  ) => {
-    // 查找或创建角色对象（支持临时角色）
-    const character = findOrCreateCharacter(
-      performer.characterName,
-      characters,
-      {
-        characterId: performer.characterId,
-        isTemp: performer.isTemp,
-      },
-    );
-
-    setCurrentActor(character.name);
-    setStreamingContent("");
-    setThinkingContent("");
-
-    const currentRoundGoal = currentRoundPlan?.goal || currentRoundPlan?.description || scene.goal;
-    const turns: any[] = (currentRoundPlan as any)?.turns || (currentRoundPlan as any)?.performances || [];
-    const turn = turns.find((t) => t.characterName === character.name);
-    const lineHint = turn?.lineHint;
-
-    const prompt = buildSceneRoundPrompt(
-      room,
-      scene,
-      character,
-      characters,
-      performances,
-      currentRound,
-      currentRoundGoal,
-      lineHint,
-    );
-    const messages = [
-      { role: "system", content: "你是专业演员。根据角色设定和剧情生成符合角色性格的表演内容。" },
-      { role: "user", content: prompt },
-    ];
-
-    try {
-      const { content, thinkingContent } = await chatStream(
-        provider,
-        messages,
+  const performAI = useCallback(
+    async (
+      performer: NonNullable<ReturnType<typeof getNextPerformer>>,
+      provider: any,
+      model: string,
+      thinking: any,
+      onStream?: (content: string, thinking: string) => void,
+    ) => {
+      // 查找或创建角色对象（支持临时角色）
+      const character = findOrCreateCharacter(
+        performer.characterName,
+        characters,
         {
-          temperature: 0.7,
-          max_tokens: 2048,
-          model,
-          thinking,
-          // 只在启用思考模式时才发送 reasoning_effort
-          ...(thinking?.enabled && provider.reasoning_effort
-            ? { reasoning_effort: provider.reasoning_effort }
-            : {}),
-        },
-        (fullContent, thinkingContent) => {
-          setStreamingContent(fullContent);
-          setThinkingContent(thinkingContent);
-          onStream?.(fullContent, thinkingContent);
+          characterId: performer.characterId,
+          isTemp: performer.isTemp,
         },
       );
 
-      // 解析并保存
-      const parsedList = parseMultiplePerformances(content);
-      let currentOrder = performances.length;
-
-      for (const parsed of parsedList) {
-        const contentObj: Record<string, string> = {};
-        if (parsed.dialogue) contentObj.dialogue = parsed.dialogue;
-        if (parsed.action) contentObj.action = parsed.action;
-        if (parsed.thought) contentObj.thought = parsed.thought;
-        if (parsed.emotion) contentObj.emotion = parsed.emotion;
-        if (Object.keys(contentObj).length === 0) continue;
-
-        await createPerformance({
-          scene_id: scene.id,
-          character_id: character.id,
-          content: contentObj,
-          primary_type: (Object.keys(contentObj)[0] as any) || "dialogue",
-          round: currentRound,
-          order: currentOrder++,
-        });
-      }
-
+      setCurrentActor(character.name);
       setStreamingContent("");
       setThinkingContent("");
-      setCurrentActor("");
-      await loadPerformances();
-    } catch (error) {
-      console.error("AI 表演失败:", error);
-      setCurrentActor("");
-      throw error;
-    }
-  }, [characters, currentRoundPlan, room, scene, performances, currentRound, loadPerformances, chatStream]);
+
+      const currentRoundGoal =
+        currentRoundPlan?.goal || currentRoundPlan?.description || scene.goal;
+      const turns: any[] =
+        (currentRoundPlan as any)?.turns ||
+        (currentRoundPlan as any)?.performances ||
+        [];
+      const turn = turns.find((t) => t.characterName === character.name);
+      const lineHint = turn?.lineHint;
+
+      const prompt = buildSceneRoundPrompt(
+        room,
+        scene,
+        character,
+        characters,
+        performances,
+        currentRound,
+        currentRoundGoal,
+        lineHint,
+      );
+      const messages = [
+        {
+          role: "system",
+          content:
+            "你是专业演员。根据角色设定和剧情生成符合角色性格的表演内容。",
+        },
+        { role: "user", content: prompt },
+      ];
+
+      try {
+        const { content, thinkingContent } = await chatStream(
+          provider,
+          messages,
+          {
+            temperature: 0.7,
+            max_tokens: 2048,
+            model,
+            thinking,
+            // 只在启用思考模式时才发送 reasoning_effort
+            ...(thinking?.enabled && provider.reasoning_effort
+              ? { reasoning_effort: provider.reasoning_effort }
+              : {}),
+          },
+          (fullContent, thinkingContent) => {
+            setStreamingContent(fullContent);
+            setThinkingContent(thinkingContent);
+            onStream?.(fullContent, thinkingContent);
+          },
+        );
+
+        // 解析并保存
+        const parsedList = parseMultiplePerformances(content);
+        let currentOrder = performances.length;
+
+        for (const parsed of parsedList) {
+          const contentObj: Record<string, string> = {};
+          if (parsed.dialogue) contentObj.dialogue = parsed.dialogue;
+          if (parsed.action) contentObj.action = parsed.action;
+          if (parsed.thought) contentObj.thought = parsed.thought;
+          if (parsed.emotion) contentObj.emotion = parsed.emotion;
+          if (Object.keys(contentObj).length === 0) continue;
+
+          await createPerformance({
+            scene_id: scene.id,
+            character_id: character.id,
+            content: contentObj,
+            primary_type: (Object.keys(contentObj)[0] as any) || "dialogue",
+            round: currentRound,
+            order: currentOrder++,
+          });
+        }
+
+        setStreamingContent("");
+        setThinkingContent("");
+        setCurrentActor("");
+        await loadPerformances();
+      } catch (error) {
+        console.error("AI 表演失败:", error);
+        setCurrentActor("");
+        throw error;
+      }
+    },
+    [
+      characters,
+      currentRoundPlan,
+      room,
+      scene,
+      performances,
+      currentRound,
+      loadPerformances,
+      chatStream,
+    ],
+  );
 
   // ===== 用户输入保存 =====
-  const saveUserPerformance = useCallback(async (
-    characterId: string,
-    content: { dialogue?: string; action?: string; thought?: string; emotion?: string }
-  ) => {
-    const contentObj: Record<string, string> = {};
-    if (content.dialogue?.trim()) contentObj.dialogue = content.dialogue.trim();
-    if (content.action?.trim()) contentObj.action = content.action.trim();
-    if (content.thought?.trim()) contentObj.thought = content.thought.trim();
-    if (content.emotion?.trim()) contentObj.emotion = content.emotion.trim();
+  const saveUserPerformance = useCallback(
+    async (
+      characterId: string,
+      content: {
+        dialogue?: string;
+        action?: string;
+        thought?: string;
+        emotion?: string;
+      },
+    ) => {
+      const contentObj: Record<string, string> = {};
+      if (content.dialogue?.trim())
+        contentObj.dialogue = content.dialogue.trim();
+      if (content.action?.trim()) contentObj.action = content.action.trim();
+      if (content.thought?.trim()) contentObj.thought = content.thought.trim();
+      if (content.emotion?.trim()) contentObj.emotion = content.emotion.trim();
 
-    if (Object.keys(contentObj).length === 0) return;
+      if (Object.keys(contentObj).length === 0) return;
 
-    await createPerformance({
-      scene_id: scene.id,
-      character_id: characterId,
-      content: contentObj,
-      primary_type: (Object.keys(contentObj)[0] as any) || "dialogue",
-      round: currentRound,
-      order: performances.length,
-    });
+      await createPerformance({
+        scene_id: scene.id,
+        character_id: characterId,
+        content: contentObj,
+        primary_type: (Object.keys(contentObj)[0] as any) || "dialogue",
+        round: currentRound,
+        order: performances.length,
+      });
 
-    await loadPerformances();
-  }, [scene.id, currentRound, performances.length, loadPerformances]);
+      await loadPerformances();
+    },
+    [scene.id, currentRound, performances.length, loadPerformances],
+  );
 
   // ===== 摘要相关 =====
   const handleGenerateSummary = async () => {
     setIsProcessingSummary(true);
     try {
-      const summary = await generateSceneSummary(scene, performances, characters);
+      const summary = await generateSceneSummary(
+        scene,
+        performances,
+        characters,
+        modelConfig
+          ? {
+              provider: modelConfig.provider,
+              model: modelConfig.model,
+            }
+          : undefined,
+      );
       setGeneratedSummary(summary);
     } catch (error) {
       console.error("生成摘要失败:", error);
@@ -300,20 +337,26 @@ export const ScenePerformanceModal: FunctionalComponent<
     setStatus("idle");
   }, [scene.id, loadPerformances]);
 
-  const deletePerf = useCallback(async (id: string) => {
-    await deletePerformance(id);
-    await loadPerformances();
-    onPerformancesChange();
-  }, [loadPerformances, onPerformancesChange]);
+  const deletePerf = useCallback(
+    async (id: string) => {
+      await deletePerformance(id);
+      await loadPerformances();
+      onPerformancesChange();
+    },
+    [loadPerformances, onPerformancesChange],
+  );
 
-  const deleteRound = useCallback(async (round: number) => {
-    const roundPerfs = performances.filter((p) => p.round === round);
-    for (const perf of roundPerfs) {
-      await deletePerformance(perf.id);
-    }
-    await loadPerformances();
-    onPerformancesChange();
-  }, [performances, loadPerformances, onPerformancesChange]);
+  const deleteRound = useCallback(
+    async (round: number) => {
+      const roundPerfs = performances.filter((p) => p.round === round);
+      for (const perf of roundPerfs) {
+        await deletePerformance(perf.id);
+      }
+      await loadPerformances();
+      onPerformancesChange();
+    },
+    [performances, loadPerformances, onPerformancesChange],
+  );
 
   const handleClose = () => {
     if (isStreaming) {
@@ -341,7 +384,11 @@ export const ScenePerformanceModal: FunctionalComponent<
             currentRound={currentRound}
             totalRounds={totalRounds}
             progress={progress}
-            currentRoundGoal={currentRoundPlan?.goal || currentRoundPlan?.description || scene.goal}
+            currentRoundGoal={
+              currentRoundPlan?.goal ||
+              currentRoundPlan?.description ||
+              scene.goal
+            }
             onClearHistory={clearHistory}
             onClose={handleClose}
             onModelConfigChange={setModelConfig}
@@ -374,6 +421,7 @@ export const ScenePerformanceModal: FunctionalComponent<
             onEndPerformance={() => setStatus("completed")}
             onFinish={handleGenerateSummary}
             generatedSummary={generatedSummary}
+            isProcessingSummary={isProcessingSummary}
             isStreaming={isStreaming}
             streamingContent={streamingContent}
             thinkingContent={thinkingContent}

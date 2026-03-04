@@ -5,6 +5,11 @@
 
 const STORAGE_KEY = "error-logs";
 const MAX_LOGS = 100; // 最多保存 100 条错误
+const CALLER_EXCLUDE_PATTERNS = [
+  "error-logger.ts",
+  "error-logger.js",
+  "<anonymous>",
+];
 
 // 检查 localStorage 是否可用
 function isLocalStorageAvailable(): boolean {
@@ -80,74 +85,52 @@ export function interceptConsole(): void {
     error: console.error,
   };
 
+  function captureConsole(
+    type: ErrorLog["type"],
+    method: string,
+    args: any[],
+  ): void {
+    const caller = getCallerInfo();
+    const source = caller.location ? `${method}@${caller.location}` : method;
+    queueLog(
+      buildErrorLog(
+        type,
+        source,
+        args.map(stringifyArg).join(" "),
+        caller.stack,
+        caller.location,
+      ),
+    );
+  }
+
   // 拦截 console.log
   console.log = function (...args: any[]) {
     originalConsole.log.apply(console, args);
-    queueLog({
-      id: crypto.randomUUID(),
-      timestamp: Date.now(),
-      type: "info",
-      message: args.map(stringifyArg).join(" "),
-      source: "console.log",
-      userAgent:
-        typeof navigator !== "undefined" ? navigator.userAgent : undefined,
-    });
+    captureConsole("info", "console.log", args);
   };
 
   // 拦截 console.debug
   console.debug = function (...args: any[]) {
     originalConsole.debug.apply(console, args);
-    queueLog({
-      id: crypto.randomUUID(),
-      timestamp: Date.now(),
-      type: "info",
-      message: args.map(stringifyArg).join(" "),
-      source: "console.debug",
-      userAgent:
-        typeof navigator !== "undefined" ? navigator.userAgent : undefined,
-    });
+    captureConsole("info", "console.debug", args);
   };
 
   // 拦截 console.info
   console.info = function (...args: any[]) {
     originalConsole.info.apply(console, args);
-    queueLog({
-      id: crypto.randomUUID(),
-      timestamp: Date.now(),
-      type: "info",
-      message: args.map(stringifyArg).join(" "),
-      source: "console.info",
-      userAgent:
-        typeof navigator !== "undefined" ? navigator.userAgent : undefined,
-    });
+    captureConsole("info", "console.info", args);
   };
 
   // 拦截 console.warn
   console.warn = function (...args: any[]) {
     originalConsole.warn.apply(console, args);
-    queueLog({
-      id: crypto.randomUUID(),
-      timestamp: Date.now(),
-      type: "warn",
-      message: args.map(stringifyArg).join(" "),
-      source: "console.warn",
-      userAgent:
-        typeof navigator !== "undefined" ? navigator.userAgent : undefined,
-    });
+    captureConsole("warn", "console.warn", args);
   };
 
   // 拦截 console.error
   console.error = function (...args: any[]) {
     originalConsole.error.apply(console, args);
-    queueLog({
-      id: crypto.randomUUID(),
-      timestamp: Date.now(),
-      type: "error",
-      message: args.map(stringifyArg).join(" "),
-      source: "console.error",
-      userAgent:
-        typeof navigator !== "undefined" ? navigator.userAgent : undefined,
-    });
+    captureConsole("error", "console.error", args);
   };
 
   console.log("[error-logger] Console 拦截已启用");
@@ -175,7 +158,93 @@ export interface ErrorLog {
   message: string;
   stack?: string;
   source?: string; // 错误来源：component, api, db, etc.
+  location?: string; // 代码位置：src/xx.ts:line:col
   userAgent?: string;
+}
+
+interface CallerInfo {
+  location?: string;
+  stack?: string;
+}
+
+function extractLocationFromStack(stack?: string): string | undefined {
+  if (!stack) return undefined;
+
+  const lines = stack.split("\n").map((line) => line.trim());
+  for (const line of lines) {
+    if (!line) continue;
+    if (CALLER_EXCLUDE_PATTERNS.some((pattern) => line.includes(pattern))) {
+      continue;
+    }
+
+    const chromeLike = line.match(
+      /(?:at\s+.*?\()?(https?:\/\/[^\s)]+|file:\/\/[^\s)]+|\/[^\s):]+):(\d+):(\d+)\)?$/,
+    );
+    if (chromeLike) {
+      return normalizeLocation(chromeLike[1], chromeLike[2], chromeLike[3]);
+    }
+
+    const firefoxLike = line.match(
+      /@((?:https?:\/\/|file:\/\/)[^\s)]+|\/[^\s):]+):(\d+):(\d+)$/,
+    );
+    if (firefoxLike) {
+      return normalizeLocation(firefoxLike[1], firefoxLike[2], firefoxLike[3]);
+    }
+  }
+
+  return undefined;
+}
+
+function normalizeLocation(rawPath: string, line: string, column: string): string {
+  let path = rawPath;
+
+  if (
+    path.startsWith("http://") ||
+    path.startsWith("https://") ||
+    path.startsWith("file://")
+  ) {
+    try {
+      path = new URL(path).pathname;
+    } catch {
+      // ignore URL parse errors
+    }
+  }
+
+  const srcIndex = path.indexOf("/src/");
+  if (srcIndex >= 0) {
+    path = path.slice(srcIndex + 1);
+  } else {
+    path = path.split("/").filter(Boolean).slice(-2).join("/");
+  }
+
+  return `${path}:${line}:${column}`;
+}
+
+function getCallerInfo(): CallerInfo {
+  const stack = new Error().stack;
+  return {
+    stack,
+    location: extractLocationFromStack(stack),
+  };
+}
+
+function buildErrorLog(
+  type: ErrorLog["type"],
+  source: string,
+  message: string,
+  stack?: string,
+  location?: string,
+): ErrorLog {
+  return {
+    id: crypto.randomUUID(),
+    timestamp: Date.now(),
+    type,
+    message,
+    stack,
+    source,
+    location,
+    userAgent: typeof navigator !== "undefined" ? navigator.userAgent : undefined,
+  };
 }
 
 /**
@@ -187,16 +256,10 @@ export function logError(
   source: string = "unknown",
 ): void {
   try {
-    const log: ErrorLog = {
-      id: crypto.randomUUID(),
-      timestamp: Date.now(),
-      type: "error",
-      message,
-      stack: error?.stack || error?.message,
-      source,
-      userAgent:
-        typeof navigator !== "undefined" ? navigator.userAgent : undefined,
-    };
+    const caller = getCallerInfo();
+    const stack = error?.stack || error?.message || caller.stack;
+    const location = extractLocationFromStack(stack) || caller.location;
+    const log = buildErrorLog("error", source, message, stack, location);
 
     // 同时输出到 console.error（会被拦截）
     console.error(`[${source}] ${message}`, error);
@@ -217,16 +280,10 @@ export function logWarn(
   source: string = "unknown",
 ): void {
   try {
-    const log: ErrorLog = {
-      id: crypto.randomUUID(),
-      timestamp: Date.now(),
-      type: "warn",
-      message,
-      stack: data?.stack || (typeof data === "string" ? data : undefined),
-      source,
-      userAgent:
-        typeof navigator !== "undefined" ? navigator.userAgent : undefined,
-    };
+    const caller = getCallerInfo();
+    const stack = data?.stack || (typeof data === "string" ? data : caller.stack);
+    const location = extractLocationFromStack(stack) || caller.location;
+    const log = buildErrorLog("warn", source, message, stack, location);
 
     console.warn(`[${source}] ${message}`, data);
     queueLog(log);
@@ -244,15 +301,10 @@ export function logInfo(
   source: string = "unknown",
 ): void {
   try {
-    const log: ErrorLog = {
-      id: crypto.randomUUID(),
-      timestamp: Date.now(),
-      type: "info",
-      message,
-      source,
-      userAgent:
-        typeof navigator !== "undefined" ? navigator.userAgent : undefined,
-    };
+    const caller = getCallerInfo();
+    const stack = data?.stack || caller.stack;
+    const location = extractLocationFromStack(stack) || caller.location;
+    const log = buildErrorLog("info", source, message, stack, location);
 
     console.log(`[${source}] ${message}`, data);
     queueLog(log);

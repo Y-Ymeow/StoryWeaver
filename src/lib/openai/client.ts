@@ -22,6 +22,11 @@ export interface APIResponse {
   raw?: any;
 }
 
+export interface ChatStreamContent {
+  content: string | null;
+  thinking: string | null;
+}
+
 export interface ChatOptions {
   temperature?: number;
   max_tokens?: number;
@@ -129,27 +134,25 @@ export class AIClient {
     const thinkingType = options?.thinking?.type || "boolean";
     const thinking = options?.thinking;
 
-    if (thinking) {
-      if (thinking?.enabled) {
-        // 启用思考
-        if (thinkingType === "boolean") {
-          body[paramKey] = true;
-          if (thinking.budget_tokens)
-            body["thinking_budget"] = thinking.budget_tokens;
-        } else if (thinkingType === "object" && thinking.default) {
-          body[paramKey] = thinking.default;
-        } else {
-          body[paramKey] = true;
-        }
+    if (thinking?.enabled) {
+      // 启用思考
+      if (thinkingType === "boolean") {
+        body[paramKey] = true;
+        if (thinking.budget_tokens)
+          body["thinking_budget"] = thinking.budget_tokens;
+      } else if (thinkingType === "object" && thinking.default) {
+        body[paramKey] = thinking.default;
       } else {
-        // 禁用思考 - 新模型必须显式发送禁用参数
-        if (thinkingType === "boolean") {
-          body[paramKey] = false;
-        } else if (thinkingType === "object" && thinking?.disabled) {
-          body[paramKey] = thinking.disabled;
-        } else if (thinkingType === "object") {
-          body[paramKey] = { type: "disabled" };
-        }
+        body[paramKey] = true;
+      }
+    } else {
+      // 禁用思考 - 新模型必须显式发送禁用参数
+      if (thinkingType === "boolean") {
+        // body[paramKey] = false;
+      } else if (thinkingType === "object" && thinking?.disabled) {
+        // body[paramKey] = thinking.disabled;
+      } else if (thinkingType === "object") {
+        body[paramKey] = { type: "disabled" };
       }
     }
 
@@ -183,7 +186,7 @@ export class AIClient {
   async *chatStream(
     messages: Array<{ role: string; content: string }>,
     options?: ChatOptions,
-  ): AsyncGenerator<string> {
+  ): AsyncGenerator<ChatStreamContent> {
     const url = `${this.getBaseURL()}/chat/completions`;
 
     const body: Record<string, any> = {
@@ -205,23 +208,19 @@ export class AIClient {
     const thinkingType = options?.thinking?.type || "boolean";
     const thinking = options?.thinking;
 
-    if (thinking) {
-      if (thinking?.enabled) {
-        // 启用思考
-        if (thinkingType === "boolean") {
-          body[paramKey] = true;
-        } else if (thinkingType === "object" && thinking.default) {
-          body[paramKey] = thinking.default;
-        }
-      } else {
-        // 禁用思考 - 新模型必须显式发送禁用参数
-        if (thinkingType === "boolean") {
-          body[paramKey] = false;
-        } else if (thinkingType === "object" && thinking?.disabled) {
-          body[paramKey] = thinking.disabled;
-        } else if (thinkingType === "object") {
-          body[paramKey] = { type: "disabled" };
-        }
+    if (thinking?.enabled) {
+      // 启用思考
+      if (thinkingType === "boolean") {
+        body[paramKey] = true;
+      } else if (thinkingType === "object" && thinking.default) {
+        body[paramKey] = thinking.default;
+      }
+    } else {
+      // 禁用思考 - 新模型必须显式发送禁用参数
+      if (thinkingType === "boolean") {
+      } else if (thinkingType === "object" && thinking?.disabled) {
+      } else if (thinkingType === "object") {
+        body[paramKey] = { type: "disabled" };
       }
     }
 
@@ -244,6 +243,9 @@ export class AIClient {
 
     const decoder = new TextDecoder();
     let buffer = "";
+    let hasThinking = false;
+    let hasThinkingEnd = thinking?.enabled;
+    let thinkingEnd = true;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -260,15 +262,31 @@ export class AIClient {
           try {
             const parsed = JSON.parse(data);
             const delta = parsed.choices?.[0]?.delta || {};
+
             const reasoningContent =
               delta.reasoning_content || delta.reasoning || delta.reasoningText;
+
+            if (!reasoningContent && hasThinking) {
+              if (delta.content.includes("<think>")) {
+                hasThinking = true;
+                thinkingEnd = false;
+              }
+
+              if (delta.content.includes("</think>")) {
+                hasThinking = false;
+                thinkingEnd = true;
+              }
+
+              if (hasThinking && !thinkingEnd) {
+                delta.reasoning_content = delta.content;
+              }
+            }
+
             if (reasoningContent) {
-              yield "<think>";
-              yield String(reasoningContent);
-              yield "</think>";
+              yield { content: null, thinking: String(reasoningContent) };
             }
             const content = delta.content;
-            if (content) yield content;
+            if (content) yield { content: content, thinking: null };
           } catch {}
         }
       }
