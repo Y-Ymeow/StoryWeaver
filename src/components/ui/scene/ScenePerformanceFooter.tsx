@@ -207,7 +207,7 @@ export const ScenePerformanceFooter: FunctionalComponent<
 
           {/* 当前轮到谁 */}
           {status === "performing" && (
-            <div class="flex items-center gap-2 flex-wrap">
+            <div class="flex flex-col items-center gap-2 flex-wrap">
               <span class="text-xs md:text-sm text-gray-300">
                 {currentActor ? (
                   <>
@@ -348,4 +348,3 @@ export const ScenePerformanceFooter: FunctionalComponent<
     </div>
   );
 };
-
