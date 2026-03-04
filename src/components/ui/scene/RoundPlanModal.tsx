@@ -1,7 +1,7 @@
 import { FunctionalComponent } from "preact";
-import { useState, useEffect } from "preact/hooks";
+import { useState, useEffect, useMemo } from "preact/hooks";
 import { Button, Modal, Input, Card, ModelButton } from "@components/ui/common";
-import type { Room, Character } from "@/stores";
+import type { Room, Character, Scene } from "@/stores";
 import type { ProviderConfig } from "@/stores/types";
 
 // 轮次计划类型
@@ -44,6 +44,8 @@ interface RoundPlanModalProps {
   onClose: () => void;
   roomContext: Room;
   characters: Character[];
+  existingScenes: Scene[];
+  editingSceneId?: string;
   sceneName: string;
   sceneDescription: string;
   sceneGoal: string;
@@ -69,6 +71,7 @@ interface RoundPlanModalProps {
   onGenerate: (params: {
     sceneCharacters: SceneCharacter[];
     keywords: string[];
+    selectedSceneSummaryIds: string[];
   }) => Promise<void>;
 }
 
@@ -76,6 +79,8 @@ export const RoundPlanModal: FunctionalComponent<RoundPlanModalProps> = ({
   isOpen,
   onClose,
   characters,
+  existingScenes,
+  editingSceneId,
   maxRounds,
   roundPlans,
   onRoundPlansChange,
@@ -98,6 +103,23 @@ export const RoundPlanModal: FunctionalComponent<RoundPlanModalProps> = ({
   const [keywords, setKeywords] = useState<string[]>([]);
   const [showKeywordsInput, setShowKeywordsInput] = useState(false);
   const [editingRoundIndex, setEditingRoundIndex] = useState<number | null>(null);
+  const [selectedSceneSummaryIds, setSelectedSceneSummaryIds] = useState<string[]>([]);
+
+  const scenesWithSummary = useMemo(
+    () =>
+      existingScenes.filter(
+        (scene) => scene.id !== editingSceneId && scene.summary?.trim(),
+      ),
+    [existingScenes, editingSceneId],
+  );
+  const sortedScenesWithSummary = useMemo(
+    () => [...scenesWithSummary].sort((a, b) => b.order - a.order),
+    [scenesWithSummary],
+  );
+  const defaultSummaryIds = useMemo(
+    () => sortedScenesWithSummary.slice(0, 5).map((scene) => scene.id),
+    [sortedScenesWithSummary],
+  );
 
   // 初始化出场角色
   useEffect(() => {
@@ -112,6 +134,12 @@ export const RoundPlanModal: FunctionalComponent<RoundPlanModalProps> = ({
       );
     }
   }, [isOpen, characters]);
+
+  // 默认选中最近 5 个章节总结
+  useEffect(() => {
+    if (!isOpen) return;
+    setSelectedSceneSummaryIds(defaultSummaryIds);
+  }, [isOpen, defaultSummaryIds]);
 
   // 手动添加轮次
   const handleAddRound = () => {
@@ -212,6 +240,7 @@ export const RoundPlanModal: FunctionalComponent<RoundPlanModalProps> = ({
     await onGenerate({
       sceneCharacters,
       keywords,
+      selectedSceneSummaryIds,
     });
   };
 
@@ -223,6 +252,7 @@ export const RoundPlanModal: FunctionalComponent<RoundPlanModalProps> = ({
     setTempCharName("");
     setShowKeywordsInput(false);
     setEditingRoundIndex(null);
+    setSelectedSceneSummaryIds(defaultSummaryIds);
     onClose();
   };
 
@@ -390,6 +420,55 @@ export const RoundPlanModal: FunctionalComponent<RoundPlanModalProps> = ({
               </div>
             )}
           </div>
+
+          {/* 章节总结上下文 */}
+          {scenesWithSummary.length > 0 && (
+            <div class="mb-3">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="text-sm font-medium text-gray-300">
+                  📚 参考章节总结 ({selectedSceneSummaryIds.length})
+                </span>
+                <Button
+                  onClick={() => setSelectedSceneSummaryIds(defaultSummaryIds)}
+                  size="sm"
+                  variant="ghost"
+                >
+                  默认最近 5 章
+                </Button>
+                <Button
+                  onClick={() => setSelectedSceneSummaryIds([])}
+                  size="sm"
+                  variant="ghost"
+                >
+                  清空
+                </Button>
+              </div>
+              <p class="text-xs text-gray-500 mb-2">
+                默认包含最近 5 个已完成章节；你也可以手动勾选要参考的章节总结。
+              </p>
+              <div class="flex flex-wrap gap-2 max-h-36 overflow-y-auto">
+                {sortedScenesWithSummary.map((scene) => (
+                    <button
+                      key={scene.id}
+                      onClick={() =>
+                        setSelectedSceneSummaryIds((prev) =>
+                          prev.includes(scene.id)
+                            ? prev.filter((id) => id !== scene.id)
+                            : [...prev, scene.id],
+                        )
+                      }
+                      class={`px-3 py-1 rounded text-sm transition-colors ${
+                        selectedSceneSummaryIds.includes(scene.id)
+                          ? "bg-primary-600 text-white"
+                          : "bg-dark-surface text-gray-300 hover:bg-dark-accent"
+                      }`}
+                    >
+                      📝 {scene.name}
+                    </button>
+                  ))}
+              </div>
+            </div>
+          )}
 
           <div class="flex max-md:flex-col-reverse md:items-center gap-2">
             <Button

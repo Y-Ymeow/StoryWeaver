@@ -284,6 +284,7 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
   const handleGenerateRoundPlan = async (params: {
     sceneCharacters: SceneCharacter[];
     keywords: string[];
+    selectedSceneSummaryIds: string[];
   }) => {
     if (!selectedProviderId || !selectedModel) {
       alert("请先选择 Provider 和模型");
@@ -316,6 +317,17 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
           created_at: 0,
           updated_at: 0,
         }));
+      const selectedSceneSummaries = existingScenes
+        .filter(
+          (scene) =>
+            scene.summary &&
+            scene.id !== editingScene?.id &&
+            params.selectedSceneSummaryIds.includes(scene.id),
+        )
+        .map((scene) => ({
+          name: scene.name,
+          summary: scene.summary,
+        }));
 
       const prompt = buildRoundPlanPrompt(
         roomContext,
@@ -327,6 +339,7 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
           maxRounds,
         },
         params.keywords.length > 0 ? params.keywords : undefined,
+        selectedSceneSummaries.length > 0 ? selectedSceneSummaries : undefined,
       );
 
       const messages = [
@@ -659,6 +672,8 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
         }}
         roomContext={roomContext}
         characters={characters}
+        existingScenes={existingScenes}
+        editingSceneId={editingScene?.id}
         sceneName={name}
         sceneDescription={description}
         sceneGoal={goal}

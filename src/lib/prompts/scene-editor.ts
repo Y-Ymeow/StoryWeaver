@@ -97,7 +97,8 @@ export function buildRoundPlanPrompt(
   room: Room,
   characters: Character[],
   scene: { name: string; description: string; goal: string; maxRounds: number },
-  keywords?: string[]
+  keywords?: string[],
+  sceneSummaries?: { name: string; summary: string }[]
 ): string {
   const userChars = characters.filter((c) => c.is_user);
   const aiChars = characters.filter((c) => !c.is_user);
@@ -108,6 +109,13 @@ export function buildRoundPlanPrompt(
     keywordsHint = `\n【关键词】${keywords.join('、')}\n`;
   }
 
+  let summaryHint = "";
+  if (sceneSummaries && sceneSummaries.length > 0) {
+    summaryHint = `\n【前情章节总结】\n${sceneSummaries
+      .map((s) => `- ${s.name}：${s.summary}`)
+      .join("\n")}\n`;
+  }
+
   return `【剧本】${room.name}
 【世界观】${room.setting || "无"}
 【剧情总览】${room.plot_summary || "无"}
@@ -116,6 +124,7 @@ export function buildRoundPlanPrompt(
 【需要生成轮次】${scene.maxRounds} 场
 【主要角色-用户】${userChars.map((c) => c.name).join(", ") || "无"}
 【主要角色-AI】${aiChars.map((c) => c.name).join(", ") || "无"}
+${summaryHint}
 ${keywordsHint}
 请设计 ${scene.maxRounds} 场演出计划。
 
