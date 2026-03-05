@@ -43,7 +43,8 @@ export function buildAIInputPrompt(
     result = `请生成 ${count} 个${mode === "character" ? "角色" : "场景"}。\n${result}`;
   }
   if (mode === "scene" && sceneLimits) {
-    result = `场景总上限：${sceneLimits.maxScenes}；当前已存在：${sceneLimits.currentScenes}；本次最多可新增：${sceneLimits.remainingScenes}。\n` +
+    result =
+      `场景总上限：${sceneLimits.maxScenes}；当前已存在：${sceneLimits.currentScenes}；本次最多可新增：${sceneLimits.remainingScenes}。\n` +
       `严禁超过剩余上限，返回的 scenes 数组长度必须 <= ${sceneLimits.remainingScenes}。\n` +
       result;
   }
@@ -88,9 +89,7 @@ ${characters
       ? `
 【已创建的场景】
 ${scenes
-  .map(
-    (s, i: number) => `${i + 1}. ${s.name} - ${s.description || "无描述"}`,
-  )
+  .map((s, i: number) => `${i + 1}. ${s.name} - ${s.description || "无描述"}`)
   .join("\n")}
 `
       : "";
@@ -148,7 +147,7 @@ ${contextInfo}${scenesInfo}
       "description": "场景描述（100 字以内）",
       "goal": "场景目标（需要完成的剧情任务）",
       "setup": "场景布置（道具、特殊元素等）",
-      "max_rounds": 10
+      "max_rounds": 场景台词的句数
     }
   ]
 }

@@ -3,38 +3,53 @@
  */
 
 import { FunctionalComponent } from "preact";
-import { useState, useEffect, useCallback } from "preact/hooks";
+import { useState, useCallback } from "preact/hooks";
 import { Button } from "@components/ui/common";
 import { UserPerformanceInput } from "@components/ui/room/UserPerformanceInput";
 import type { Character } from "@/stores";
-import { findCharacterByName } from "@/lib/rules/performance";
 
-interface ModelConfig {
-  provider: any;
-  model: string;
-  thinking: any;
+interface SceneDirective {
+  id: string;
+  step: number;
+  speaker: {
+    characterId: string;
+    characterName: string;
+    isUser: boolean;
+    isTemp?: boolean;
+    background?: string;
+    dialogueStyle?: string;
+  };
+  task: string;
+  goal?: string;
+  sceneBeat?: string;
+  environment?: string;
+  lineHint?: string;
+  suggestedTypes: Array<"dialogue" | "action" | "thought" | "emotion">;
+  createdAt: number;
 }
 
-import type { Performer } from "@/lib/rules/performance";
+interface AICandidate {
+  id: string;
+  content: {
+    dialogue?: string;
+    action?: string;
+    thought?: string;
+    emotion?: string;
+  };
+}
 
 interface ScenePerformanceFooterProps {
   status: "idle" | "performing" | "completed";
-  currentRound: number;
-  totalRounds: number;
-  currentPerformer: Performer | null;
-  currentRoundPlan: any;
+  currentStep: number;
+  totalSteps: number;
+  nextDirective: SceneDirective | null;
   isLoaded: boolean;
   characters: Character[];
-  modelConfig: ModelConfig | null;
-  performAI: (
-    performer: Performer,
-    provider: any,
-    model: string,
-    thinking: any,
-    onStream: (content: string, thinking: string) => void,
-  ) => Promise<void>;
+  isAdvancing: boolean;
+  aiCandidates: AICandidate[];
+  isGeneratingCandidates: boolean;
   saveUserPerformance: (
-    characterId: string,
+    directive: SceneDirective,
     content: {
       dialogue?: string;
       action?: string;
@@ -42,12 +57,16 @@ interface ScenePerformanceFooterProps {
       emotion?: string;
     },
   ) => Promise<void>;
-  onStart: () => void; // 开始演出（从 idle 切换到 performing）
+  onGenerateCandidates: (directive: SceneDirective) => Promise<void>;
+  onSelectCandidate: (
+    directive: SceneDirective,
+    candidate: AICandidate,
+  ) => Promise<void>;
+  onContinue: () => Promise<void>;
   onEndPerformance: () => void;
   onFinish: () => void;
   generatedSummary: string;
   isProcessingSummary?: boolean;
-  // 流式显示状态（由父组件控制）
   isStreaming?: boolean;
   streamingContent?: string;
   thinkingContent?: string;
@@ -58,16 +77,18 @@ export const ScenePerformanceFooter: FunctionalComponent<
   ScenePerformanceFooterProps
 > = ({
   status,
-  currentRound,
-  totalRounds,
-  currentPerformer,
-  currentRoundPlan,
+  currentStep,
+  totalSteps,
+  nextDirective,
   isLoaded,
   characters,
-  modelConfig,
-  performAI,
+  isAdvancing,
+  aiCandidates,
+  isGeneratingCandidates,
   saveUserPerformance,
-  onStart,
+  onGenerateCandidates,
+  onSelectCandidate,
+  onContinue,
   onEndPerformance,
   onFinish,
   generatedSummary,
@@ -77,132 +98,56 @@ export const ScenePerformanceFooter: FunctionalComponent<
   thinkingContent = "",
   currentActor = "",
 }) => {
-  // 用户输入状态
   const [isProcessing, setIsProcessing] = useState(false);
-  const [userInputs, setUserInputs] = useState<
-    Record<
-      string,
-      {
-        dialogue: string;
-        action: string;
-        thought: string;
-        emotion: string;
-      }
-    >
-  >({});
+  const [userInput, setUserInput] = useState({
+    dialogue: "",
+    action: "",
+    thought: "",
+    emotion: "",
+  });
 
-  // 计算属性
-  const isUserTurn = currentPerformer?.isUser ?? false;
-  const isAiTurn = currentPerformer ? !currentPerformer.isUser : false;
-  const isAllRoundsComplete =
-    !currentPerformer && currentRound >= totalRounds && isLoaded;
+  const isUserTurn = nextDirective?.speaker.isUser ?? false;
+  const canEnd = status !== "completed" && isLoaded;
 
-  // 当前台词建议
-  const currentLineHint = (() => {
-    if (!currentPerformer || !currentRoundPlan) return null;
-    const turns: any[] =
-      currentRoundPlan?.turns || currentRoundPlan?.performances || [];
-    const turn = turns.find(
-      (t) => t.characterName === currentPerformer.characterName,
-    );
-    return turn?.lineHint;
+  const currentCharacter = (() => {
+    if (!nextDirective) return undefined;
+    if (!nextDirective.speaker.isTemp) {
+      return characters.find((c) => c.id === nextDirective.speaker.characterId);
+    }
+    return {
+      id: nextDirective.speaker.characterId,
+      name: nextDirective.speaker.characterName,
+      background: nextDirective.speaker.background || "临时角色",
+      dialogue_style: nextDirective.speaker.dialogueStyle || "自然口语",
+      is_user: nextDirective.speaker.isUser,
+      memory: null,
+      type: nextDirective.speaker.isUser ? "user" : "ai",
+      room_id: "",
+      order: 0,
+      created_at: 0,
+      updated_at: 0,
+    } as Character;
   })();
 
-  // 是否临时角色
-  const isTempPerformer = (() => {
-    if (!currentPerformer || !currentRoundPlan) return false;
-    const turns: any[] =
-      currentRoundPlan?.turns || currentRoundPlan?.performances || [];
-    const turn = turns.find(
-      (t) => t.characterName === currentPerformer.characterName,
-    );
-    return turn?.isTemp;
-  })();
-
-  // 执行 AI 表演
-  const handleAIPerform = useCallback(async () => {
-    if (!modelConfig) {
-      alert("请先选择模型");
-      return;
-    }
-
-    if (!currentPerformer) {
-      alert("没有安排轮次，请先创建轮次");
-      return;
-    }
-
-    setIsProcessing(true);
-    try {
-      let retryCount = 0;
-      const maxRetries = 3;
-
-      while (retryCount < maxRetries) {
-        console.log(modelConfig);
-        try {
-          await performAI(
-            currentPerformer,
-            modelConfig.provider,
-            modelConfig.model,
-            modelConfig.thinking,
-            () => {}, // 流式回调由父组件管理
-          );
-          setIsProcessing(false);
-          return;
-        } catch (error: any) {
-          retryCount++;
-          const isRateLimit =
-            error?.status === 429 || error?.message?.includes("429");
-          if (isRateLimit && retryCount < maxRetries) {
-            const waitTime = Math.pow(2, retryCount) * 1000;
-            console.log(`429 限流，等待 ${waitTime}ms`);
-            await new Promise((r) => setTimeout(r, waitTime));
-          } else {
-            console.error("AI 表演失败:", error);
-            alert(`AI 表演失败：${error?.message || "请重试"}`);
-            setIsProcessing(false);
-            return;
-          }
-        }
-      }
-    } catch (error) {
-      console.error("AI 表演失败:", error);
-    }
-    setIsProcessing(false);
-  }, [currentPerformer, modelConfig, performAI]);
-
-  // 用户提交输入
   const handleUserInput = useCallback(async () => {
-    if (!currentPerformer || !currentPerformer.isUser) return;
-
-    const character = findCharacterByName(
-      currentPerformer.characterName,
-      characters,
-    );
-    if (!character) return;
-
-    const input = userInputs[character.id];
-    if (!input) return;
+    if (!nextDirective) return;
 
     setIsProcessing(true);
     try {
-      await saveUserPerformance(character.id, input);
-      setUserInputs({});
+      await saveUserPerformance(nextDirective, userInput);
+      setUserInput({ dialogue: "", action: "", thought: "", emotion: "" });
     } finally {
       setIsProcessing(false);
     }
-  }, [currentPerformer, characters, userInputs, saveUserPerformance]);
-
-  // 判断是否启用 thinking
-  const isThinkingEnabled = modelConfig?.thinking?.enabled;
+  }, [nextDirective, saveUserPerformance, userInput]);
 
   return (
     <div class="shrink-0 border-t border-dark-accent">
-      {/* 状态栏 */}
       <div class="flex flex-row md:items-center justify-between px-3 md:px-4 py-2 md:py-3 bg-dark-accent/20 gap-2">
         <div class="flex items-center gap-2 md:gap-4 flex-wrap">
-          {status === "performing" && (
+          {status !== "completed" && (
             <span class="text-xs md:text-sm font-semibold text-white px-2 py-0.5 md:px-3 md:py-1 bg-primary-600/30 rounded">
-              第 {currentRound}/{totalRounds} 轮
+              步骤 {currentStep}/{totalSteps}
             </span>
           )}
           {status === "idle" && (
@@ -212,83 +157,53 @@ export const ScenePerformanceFooter: FunctionalComponent<
             <span class="text-xs md:text-sm text-green-400">✅ 演出完成</span>
           )}
 
-          {/* 当前轮到谁 */}
-          {status === "performing" && (
-            <div class="flex flex-col gap-2 flex-wrap">
-              <span class="text-xs md:text-sm text-gray-300">
-                {currentActor ? (
-                  <>
-                    🤖 <span class="text-white">{currentActor}</span> 生成中...
-                  </>
-                ) : isUserTurn ? (
-                  <>
-                    👤 轮到{" "}
-                    <span class="text-primary-300">
-                      {currentPerformer?.characterName}
-                    </span>
-                    {isTempPerformer && (
-                      <span class="ml-1 text-xs px-1.5 py-0.5 bg-purple-600/30 text-purple-300 rounded">
-                        临时
-                      </span>
-                    )}
-                  </>
-                ) : isAiTurn ? (
-                  <>
-                    🤖 等待{" "}
-                    <span class="text-white">
-                      {currentPerformer?.characterName}
-                    </span>
-                    {isTempPerformer && (
-                      <span class="ml-1 text-xs px-1.5 py-0.5 bg-purple-600/30 text-purple-300 rounded">
-                        临时
-                      </span>
-                    )}
-                  </>
-                ) : (
-                  <>✓ 本轮完成</>
-                )}
-              </span>
-              {currentLineHint && (
-                <span class="text-xs px-2 py-0.5 bg-primary-600/30 text-primary-300 rounded">
-                  💡 {currentLineHint}
-                </span>
-              )}
-            </div>
+          {status === "performing" && nextDirective && (
+            <span class="text-xs md:text-sm text-gray-300">
+              {currentActor
+                ? `🤖 ${currentActor} 执行中...`
+                : `${isUserTurn ? "👤" : "🤖"} 下一位：${nextDirective.speaker.characterName}`}
+            </span>
+          )}
+          {status === "performing" && !nextDirective && (
+            <span class="text-xs md:text-sm text-amber-300">
+              等待生成下一步指令
+            </span>
           )}
         </div>
+
         <div class="flex gap-2 justify-end">
-          {status === "idle" && (
-            <Button
-              onClick={isUserTurn ? onStart : handleAIPerform}
-              isLoading={isProcessing}
-              size="sm"
-            >
-              {isUserTurn ? "🎬 开始（用户回合）" : "🎬 开始"}
+          {(status === "idle" || status === "performing") && (
+            <Button onClick={onContinue} isLoading={isAdvancing} size="sm">
+              ▶ 继续
             </Button>
           )}
-          {status === "performing" && isAiTurn && !isStreaming && (
+
+          {status === "performing" && nextDirective && isUserTurn && (
             <Button
-              onClick={handleAIPerform}
-              isLoading={isProcessing || isStreaming}
+              onClick={() => onGenerateCandidates(nextDirective)}
+              isLoading={isGeneratingCandidates}
               size="sm"
             >
-              🎬 继续
+              ✨ 生成4句候选
             </Button>
           )}
-          {status === "performing" && isUserTurn && (
+
+          {status === "performing" && nextDirective && isUserTurn && (
             <Button
               onClick={handleUserInput}
               isLoading={isProcessing}
               size="sm"
             >
-              ✓ 确认
+              ✓ 提交这一步
             </Button>
           )}
-          {status === "performing" && isAllRoundsComplete && (
-            <Button onClick={onEndPerformance} variant="primary" size="sm">
+
+          {canEnd && (
+            <Button onClick={onEndPerformance} variant="secondary" size="sm">
               🏁 结束演出
             </Button>
           )}
+
           {status === "completed" && !generatedSummary && (
             <Button
               onClick={onFinish}
@@ -302,36 +217,91 @@ export const ScenePerformanceFooter: FunctionalComponent<
         </div>
       </div>
 
-      {/* 用户输入区域 */}
-      {status === "performing" && isUserTurn && currentPerformer && (
+      {status === "performing" && nextDirective && (
         <div class="px-2 md:px-4 py-2 border-t border-dark-accent/50">
-          {(() => {
-            const character = findCharacterByName(
-              currentPerformer.characterName,
-              characters,
-            );
-            return character ? (
-              <UserPerformanceInput
-                character={character}
-                value={
-                  userInputs[character.id] || {
-                    dialogue: "",
-                    action: "",
-                    thought: "",
-                    emotion: "",
-                  }
-                }
-                onChange={(value) =>
-                  setUserInputs({ ...userInputs, [character.id]: value })
-                }
-                lineHint={currentLineHint || undefined}
-              />
-            ) : null;
-          })()}
+          <div class="rounded-lg border border-primary-500/30 bg-primary-600/10 p-3 text-xs md:text-sm text-gray-200 space-y-1">
+            <div>
+              <span class="text-primary-300">目标：</span>
+              {nextDirective.goal || "推进剧情"}
+            </div>
+            <div>
+              <span class="text-primary-300">任务：</span>
+              {nextDirective.task}
+            </div>
+            {(nextDirective.sceneBeat || nextDirective.environment) && (
+              <div>
+                <span class="text-primary-300">场景：</span>
+                {nextDirective.sceneBeat || "剧情推进中"} ·{" "}
+                {nextDirective.environment || "默认环境"}
+              </div>
+            )}
+            {nextDirective.lineHint && (
+              <div>
+                <span class="text-primary-300">提示：</span>
+                {nextDirective.lineHint}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
-      {/* AI 生成中提示 */}
+      {status === "performing" &&
+        nextDirective &&
+        isUserTurn &&
+        currentCharacter && (
+          <div class="px-2 md:px-4 py-2 border-t border-dark-accent/50">
+            <UserPerformanceInput
+              character={currentCharacter}
+              value={userInput}
+              onChange={setUserInput}
+              lineHint={nextDirective.lineHint || undefined}
+            />
+          </div>
+        )}
+
+      {status === "performing" &&
+        nextDirective &&
+        isUserTurn &&
+        aiCandidates.length > 0 && (
+          <div class="px-2 md:px-4 py-2 border-t border-dark-accent/50 space-y-2 h-55 overflow-y-scroll">
+            <div class="text-xs text-primary-300">请选择一句作为本步输出：</div>
+            {aiCandidates.map((candidate, index) => (
+              <div
+                key={candidate.id}
+                class="rounded-lg border border-dark-accent bg-dark-accent/20 p-2"
+              >
+                <div class="text-xs text-gray-400 mb-1">候选 {index + 1}</div>
+                <div class="text-sm text-gray-200 whitespace-pre-wrap">
+                  {candidate.content.dialogue || "（无对话）"}
+                </div>
+                {candidate.content.action && (
+                  <div class="text-xs text-gray-400 mt-1">
+                    🎯 {candidate.content.action}
+                  </div>
+                )}
+                {candidate.content.thought && (
+                  <div class="text-xs text-gray-400 mt-1">
+                    💭 {candidate.content.thought}
+                  </div>
+                )}
+                {candidate.content.emotion && (
+                  <div class="text-xs text-gray-400 mt-1">
+                    ❤️ {candidate.content.emotion}
+                  </div>
+                )}
+                <div class="mt-2">
+                  <Button
+                    size="sm"
+                    onClick={() => onSelectCandidate(nextDirective, candidate)}
+                  >
+                    使用这句
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
       {status === "performing" && (thinkingContent || streamingContent) && (
         <div class="px-2 md:px-4 py-2 border-t border-dark-accent/50">
           {thinkingContent && (

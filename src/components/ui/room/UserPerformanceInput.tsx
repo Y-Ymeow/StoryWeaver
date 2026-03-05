@@ -10,18 +10,20 @@ import type { Character } from "@/stores";
 interface UserPerformanceInputProps {
   character: Character;
   value: { dialogue: string; action: string; thought: string; emotion: string };
-  onChange: (value: { dialogue: string; action: string; thought: string; emotion: string }) => void;
-  lineHint?: string;  // 台词建议
+  onChange: (value: {
+    dialogue: string;
+    action: string;
+    thought: string;
+    emotion: string;
+  }) => void;
+  lineHint?: string; // 台词建议
 }
 
 type InputTab = "dialogue" | "action" | "thought" | "emotion";
 
-export const UserPerformanceInput: FunctionalComponent<UserPerformanceInputProps> = ({
-  character,
-  value,
-  onChange,
-  lineHint,
-}) => {
+export const UserPerformanceInput: FunctionalComponent<
+  UserPerformanceInputProps
+> = ({ character, value, onChange, lineHint }) => {
   const [activeTab, setActiveTab] = useState<InputTab>("dialogue");
   const [expanded, setExpanded] = useState(false);
 
@@ -38,7 +40,12 @@ export const UserPerformanceInput: FunctionalComponent<UserPerformanceInputProps
         return (
           <TextArea
             value={value.dialogue}
-            onInput={(e) => onChange({ ...value, dialogue: (e.target as HTMLTextAreaElement).value })}
+            onInput={(e) =>
+              onChange({
+                ...value,
+                dialogue: (e.target as HTMLTextAreaElement).value,
+              })
+            }
             placeholder="输入台词..."
             rows={2}
             class="w-full resize-none text-sm"
@@ -48,7 +55,12 @@ export const UserPerformanceInput: FunctionalComponent<UserPerformanceInputProps
         return (
           <TextArea
             value={value.action}
-            onInput={(e) => onChange({ ...value, action: (e.target as HTMLTextAreaElement).value })}
+            onInput={(e) =>
+              onChange({
+                ...value,
+                action: (e.target as HTMLTextAreaElement).value,
+              })
+            }
             placeholder="动作描述..."
             rows={2}
             class="w-full resize-none text-sm"
@@ -58,7 +70,12 @@ export const UserPerformanceInput: FunctionalComponent<UserPerformanceInputProps
         return (
           <TextArea
             value={value.thought}
-            onInput={(e) => onChange({ ...value, thought: (e.target as HTMLTextAreaElement).value })}
+            onInput={(e) =>
+              onChange({
+                ...value,
+                thought: (e.target as HTMLTextAreaElement).value,
+              })
+            }
             placeholder="内心想法..."
             rows={2}
             class="w-full resize-none text-sm"
@@ -68,7 +85,12 @@ export const UserPerformanceInput: FunctionalComponent<UserPerformanceInputProps
         return (
           <Input
             value={value.emotion}
-            onInput={(e) => onChange({ ...value, emotion: (e.target as HTMLInputElement).value })}
+            onInput={(e) =>
+              onChange({
+                ...value,
+                emotion: (e.target as HTMLInputElement).value,
+              })
+            }
             placeholder="表情/情绪..."
             class="w-full text-sm"
           />
@@ -77,7 +99,12 @@ export const UserPerformanceInput: FunctionalComponent<UserPerformanceInputProps
   };
 
   // 统计已填写的内容数量
-  const filledCount = [value.dialogue, value.action, value.thought, value.emotion].filter(v => v.trim()).length;
+  const filledCount = [
+    value.dialogue,
+    value.action,
+    value.thought,
+    value.emotion,
+  ].filter((v) => v.trim()).length;
 
   return (
     <div class="space-y-2">
@@ -87,7 +114,9 @@ export const UserPerformanceInput: FunctionalComponent<UserPerformanceInputProps
         onClick={() => setExpanded(!expanded)}
       >
         <div class="flex items-center gap-2">
-          <span class="text-sm font-medium text-primary-300">👤 {character.name}</span>
+          <span class="text-sm font-medium text-primary-300">
+            👤 {character.name}
+          </span>
           {filledCount > 0 && (
             <span class="text-xs bg-primary-600/30 text-primary-300 px-1.5 rounded">
               {filledCount}项
@@ -96,18 +125,6 @@ export const UserPerformanceInput: FunctionalComponent<UserPerformanceInputProps
         </div>
         <span class="text-gray-400 text-sm">{expanded ? "▼" : "▶"}</span>
       </div>
-
-      {/* 台词建议 */}
-      {lineHint && (
-        <div class="bg-primary-600/20 border border-primary-500/30 rounded-lg px-3 py-2">
-          <div class="text-xs text-primary-300 mb-1">
-            💡 台词建议
-          </div>
-          <div class="text-sm text-white font-medium">
-            {lineHint}
-          </div>
-        </div>
-      )}
 
       {expanded && (
         <>
@@ -138,3 +155,4 @@ export const UserPerformanceInput: FunctionalComponent<UserPerformanceInputProps
     </div>
   );
 };
+

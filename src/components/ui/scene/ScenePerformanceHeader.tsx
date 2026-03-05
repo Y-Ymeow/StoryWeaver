@@ -13,10 +13,17 @@ type PerformanceStatus = "idle" | "performing" | "completed";
 interface ScenePerformanceHeaderProps {
   scene: Scene;
   status: PerformanceStatus;
-  currentRound: number;
-  totalRounds: number;
+  currentStep: number;
+  totalSteps: number;
   progress: number;
-  currentRoundGoal: string | undefined;
+  nextDirective: {
+    goal?: string;
+    task?: string;
+    sceneBeat?: string;
+    environment?: string;
+    speaker?: { characterName?: string };
+  } | null;
+  completionReason?: string;
   onClearHistory: () => void;
   onClose: () => void;
   onModelConfigChange: (config: {
@@ -31,10 +38,11 @@ export const ScenePerformanceHeader: FunctionalComponent<
 > = ({
   scene,
   status,
-  currentRound,
-  totalRounds,
+  currentStep,
+  totalSteps,
   progress,
-  currentRoundGoal,
+  nextDirective,
+  completionReason,
   onClearHistory,
   onClose,
   onModelConfigChange,
@@ -54,12 +62,13 @@ export const ScenePerformanceHeader: FunctionalComponent<
     const data = localStorage.getItem("ai-providers");
     const loadedProviders = data ? JSON.parse(data) : [];
     setProviders(loadedProviders);
-    const active = loadedProviders.find((p: any) => p.is_active);
-    if (active) {
-      setSelectedProviderId(active.id);
-      const model = active.custom_models?.[0] || active.model;
+    const target =
+      loadedProviders.find((p: any) => p.is_active) || loadedProviders[0];
+    if (target) {
+      setSelectedProviderId(target.id);
+      const model = target.custom_models?.[0] || target.model;
       if (model) setSelectedModel(model);
-      setIsThinkingModel(active.supports_thinking || false);
+      setIsThinkingModel(target.supports_thinking || false);
       setEnableThinking(false); // 默认不启用思考，让用户手动开启
     }
   }, []);
@@ -99,7 +108,7 @@ export const ScenePerformanceHeader: FunctionalComponent<
             🎬 {scene.name}
           </h2>
           <div class="text-xs md:text-sm text-gray-400 mt-1">
-            轮次：{currentRound} / {totalRounds}
+            剧情步骤：{currentStep} / {totalSteps}
           </div>
         </div>
         <div class="flex items-center gap-1 md:gap-2 shrink-0">
@@ -143,13 +152,21 @@ export const ScenePerformanceHeader: FunctionalComponent<
         {scene.description}
       </p>
 
-      {/* 当前轮次目标 */}
-      {status === "performing" && currentRoundGoal && (
+      {/* 当前指令 */}
+      {status === "performing" && nextDirective && (
         <div class="bg-primary-600/20 border border-primary-500/30 rounded-lg px-3 py-2 mt-2">
           <div class="text-xs text-primary-300 mb-1">
-            🎯 第 {currentRound} 轮目标
+            🎬 下一步指令：{nextDirective.speaker?.characterName || "未知角色"}
           </div>
-          <div class="text-sm text-white font-medium">{currentRoundGoal}</div>
+          <div class="text-sm text-white font-medium">
+            {nextDirective.task || nextDirective.goal || nextDirective.sceneBeat}
+          </div>
+          {(nextDirective.sceneBeat || nextDirective.environment) && (
+            <div class="text-xs text-primary-200/80 mt-1">
+              {nextDirective.sceneBeat || "剧情推进中"} ·{" "}
+              {nextDirective.environment || "默认环境"}
+            </div>
+          )}
         </div>
       )}
       {status === "idle" && scene.goal && (
@@ -157,9 +174,12 @@ export const ScenePerformanceHeader: FunctionalComponent<
           🎯 场景目标：{scene.goal}
         </div>
       )}
+      {status === "completed" && completionReason && (
+        <div class="text-xs text-green-300 mt-2">✅ 结束原因：{completionReason}</div>
+      )}
 
       {/* 进度条 */}
-      {totalRounds > 0 && (
+      {totalSteps > 0 && (
         <div class="mt-2 h-1.5 md:h-2 bg-dark-accent rounded-full overflow-hidden">
           <div
             class="h-full bg-linear-to-r from-primary-600 to-primary-400 transition-all duration-300"
@@ -170,4 +190,3 @@ export const ScenePerformanceHeader: FunctionalComponent<
     </div>
   );
 };
-

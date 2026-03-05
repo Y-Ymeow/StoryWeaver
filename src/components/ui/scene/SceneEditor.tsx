@@ -1,23 +1,11 @@
 import { FunctionalComponent } from "preact";
 import { useState, useEffect } from "preact/hooks";
-import {
-  Button,
-  Modal,
-  Input,
-  TextArea,
-  Card,
-} from "@components/ui/common";
+import { Button, Modal, Input, TextArea } from "@components/ui/common";
 import { AIGenerateModal } from "./AIGenerateModal";
-import { RoundPlanModal } from "./RoundPlanModal";
 import { createScene, updateScene } from "@/db";
 import type { Scene, Room, Character } from "@/stores";
 import { useProviders, useAI } from "@/hooks";
-import {
-  getSceneSystemPrompt,
-  buildScenePrompt,
-  getRoundPlanSystemPrompt,
-  buildRoundPlanPrompt,
-} from "@/lib/prompts/scene-editor";
+import { getSceneSystemPrompt, buildScenePrompt } from "@/lib/prompts/scene-editor";
 
 interface SceneEditorProps {
   isOpen: boolean;
@@ -27,30 +15,7 @@ interface SceneEditorProps {
   editingScene?: Scene | null;
   roomContext: Room;
   characters: Character[];
-  existingScenes?: Scene[]; // 已有场景列表，用于提供上下文
-}
-
-// 轮次计划类型
-interface RoundPlan {
-  round: number;
-  description: string;
-  goal?: string;
-  turns: {
-    characterId: string;
-    characterName: string;
-    isUser: boolean;
-    isTemp?: boolean;
-    types: string[];
-    lineHint?: string;
-  }[];
-}
-
-// 场景出场角色设置
-interface SceneCharacter {
-  id: string;
-  name: string;
-  isUser: boolean;
-  isInScene: boolean;
+  existingScenes?: Scene[];
 }
 
 export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
@@ -66,7 +31,6 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
   const maxScenesLimit = Math.max(1, Math.min(200, roomContext.max_scenes || 50));
   const existingSceneCount = existingScenes.length;
 
-  // 表单状态
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [goal, setGoal] = useState("");
@@ -74,17 +38,10 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
   const [summary, setSummary] = useState("");
   const [maxRounds, setMaxRounds] = useState(10);
   const [isAIInputOpen, setIsAIInputOpen] = useState(false);
-  const [isRoundPlanOpen, setIsRoundPlanOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [sceneStreamingContent, setSceneStreamingContent] = useState("");
   const [sceneThinkingContent, setSceneThinkingContent] = useState("");
-  const [roundStreamingContent, setRoundStreamingContent] = useState("");
-  const [roundThinkingContent, setRoundThinkingContent] = useState("");
 
-  // 轮次计划
-  const [roundPlans, setRoundPlans] = useState<RoundPlan[]>([]);
-
-  // 使用自定义 hooks
   const {
     providers,
     selectedProviderId,
@@ -101,7 +58,6 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
 
   const { isGenerating, generate } = useAI();
 
-  // 加载编辑的场景数据
   useEffect(() => {
     if (editingScene) {
       setName(editingScene.name);
@@ -110,29 +66,16 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
       setSetup(editingScene.setup);
       setSummary(editingScene.summary || "");
       setMaxRounds(editingScene.max_rounds);
-
-      if (editingScene.round_plan) {
-        setRoundPlans(
-          typeof editingScene.round_plan === "string"
-            ? JSON.parse(editingScene.round_plan)
-            : editingScene.round_plan,
-        );
-      } else {
-        setRoundPlans([]);
-      }
     } else {
       resetForm();
     }
   }, [editingScene, isOpen]);
 
-  // 关闭时重置表单
   useEffect(() => {
     if (!isOpen) {
       resetForm();
       setSceneStreamingContent("");
       setSceneThinkingContent("");
-      setRoundStreamingContent("");
-      setRoundThinkingContent("");
     }
   }, [isOpen]);
 
@@ -143,10 +86,8 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
     setSetup("");
     setSummary("");
     setMaxRounds(10);
-    setRoundPlans([]);
   };
 
-  // 处理 AI 生成场景
   const handleGenerateScene = async (params: {
     prompt: string;
     selectedSceneSummaries: string[];
@@ -167,7 +108,6 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
       setSceneStreamingContent("");
       setSceneThinkingContent("");
 
-      // 构建选中的场景摘要
       const sceneSummaries = existingScenes
         .filter(
           (s) =>
@@ -225,7 +165,6 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
         temperature: 0.7,
         max_tokens: 2048,
         thinking,
-        // 只在启用思考模式时才发送 reasoning_effort
         ...(thinking?.enabled && provider.reasoning_effort
           ? { reasoning_effort: provider.reasoning_effort }
           : {}),
@@ -280,156 +219,6 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
     }
   };
 
-  // 处理 AI 生成轮次计划
-  const handleGenerateRoundPlan = async (params: {
-    sceneCharacters: SceneCharacter[];
-    keywords: string[];
-    selectedSceneSummaryIds: string[];
-  }) => {
-    if (!selectedProviderId || !selectedModel) {
-      alert("请先选择 Provider 和模型");
-      return;
-    }
-
-    const provider = providers.find((p) => p.id === selectedProviderId);
-    if (!provider) {
-      alert("Provider 不存在");
-      return;
-    }
-
-    try {
-      setRoundStreamingContent("");
-      setRoundThinkingContent("");
-
-      // 转换为 Character 类型用于 prompt
-      const selectedCharsForPrompt = params.sceneCharacters
-        .filter((c) => c.isInScene)
-        .map((c) => ({
-          id: c.id,
-          name: c.name,
-          is_user: c.isUser,
-          background: "",
-          dialogue_style: "",
-          memory: null,
-          type: c.isUser ? ("user" as const) : ("ai" as const),
-          room_id: "",
-          order: 0,
-          created_at: 0,
-          updated_at: 0,
-        }));
-      const selectedSceneSummaries = existingScenes
-        .filter(
-          (scene) =>
-            scene.summary &&
-            scene.id !== editingScene?.id &&
-            params.selectedSceneSummaryIds.includes(scene.id),
-        )
-        .map((scene) => ({
-          name: scene.name,
-          summary: scene.summary,
-        }));
-
-      const prompt = buildRoundPlanPrompt(
-        roomContext,
-        selectedCharsForPrompt,
-        {
-          name: name || "未命名场景",
-          description,
-          goal,
-          maxRounds,
-        },
-        params.keywords.length > 0 ? params.keywords : undefined,
-        selectedSceneSummaries.length > 0 ? selectedSceneSummaries : undefined,
-      );
-
-      const messages = [
-        { role: "system", content: getRoundPlanSystemPrompt() },
-        { role: "user", content: prompt },
-      ];
-
-      const thinking =
-        provider.supports_thinking && enableThinking
-          ? {
-              enabled: true,
-              param_key: provider.thinking_param_key || "thinking",
-              type: provider.thinking_param_type || "boolean",
-              default: provider.thinking_param_default,
-              budget_tokens: thinkingBudget,
-            }
-          : {
-              enabled: false,
-              param_key: provider.thinking_param_key || "thinking",
-              type: provider.thinking_param_type || "boolean",
-              disabled: provider.thinking_param_disabled,
-            };
-
-      const data = await generate<{
-        rounds: Array<{
-          round: number;
-          description: string;
-          goal?: string;
-          turns?: Array<{
-            characterId: string;
-            characterName: string;
-            isUser: boolean;
-            types: string[];
-            lineHint?: string;
-          }>;
-          performances?: Array<{
-            characterId: string;
-            characterName: string;
-            isUser: boolean;
-            types: string[];
-            lineHint?: string;
-          }>;
-        }>;
-      }>(provider, selectedModel, messages, {
-        temperature: 0.7,
-        max_tokens: 4096,
-        thinking,
-        // 只在启用思考模式时才发送 reasoning_effort
-        ...(thinking?.enabled && provider.reasoning_effort
-          ? { reasoning_effort: provider.reasoning_effort }
-          : {}),
-        onStream: (content, thinkingContent) => {
-          setRoundStreamingContent(content);
-          setRoundThinkingContent(thinkingContent);
-        },
-      });
-
-      const rounds: RoundPlan[] =
-        data.rounds?.map((r: any) => ({
-          round: r.round,
-          description: r.description || `第${r.round}场`,
-          goal: r.goal || "",
-          // 兼容旧版 performances 和新版 turns
-          turns:
-            r.turns?.map((p: any) => ({
-              characterId: p.characterId,
-              characterName: p.characterName,
-              isUser: p.isUser || false,
-              isTemp: p.isTemp || false,  // 临时角色标识
-              types: p.types || ["dialogue"],
-              lineHint: p.lineHint || "",
-            })) ||
-            r.performances?.map((p: any) => ({
-              characterId: p.characterId,
-              characterName: p.characterName,
-              isUser: p.isUser || false,
-              isTemp: p.isTemp || false,
-              types: p.types || ["dialogue"],
-              lineHint: p.lineHint || "",
-            })) ||
-            [],
-        })) || [];
-
-      setRoundPlans(rounds);
-    } catch (error) {
-      console.error("生成轮次计划失败:", error);
-      alert(`生成失败：${error instanceof Error ? error.message : "请重试"}`);
-    }
-  };
-
   const handleSubmit = async () => {
     if (!name.trim()) {
       alert("请输入场景名称");
@@ -446,7 +235,7 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
           setup,
           summary,
           max_rounds: maxRounds,
-          round_plan: roundPlans.length > 0 ? JSON.stringify(roundPlans) : null,
+          round_plan: null,
         });
       } else {
         if (existingSceneCount >= maxScenesLimit) {
@@ -462,7 +251,7 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
           summary,
           max_rounds: maxRounds,
           order: 0,
-          round_plan: roundPlans.length > 0 ? JSON.stringify(roundPlans) : null,
+          round_plan: null,
         });
       }
       onSaved();
@@ -505,12 +294,6 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
               🤖 AI 生成场景
             </Button>
             <Button
-              onClick={() => setIsRoundPlanOpen(true)}
-              variant="secondary"
-            >
-              📋 安排轮次
-            </Button>
-            <Button
               onClick={handleSubmit}
               isLoading={isSaving}
               disabled={!name.trim()}
@@ -535,7 +318,7 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
 
             <div>
               <label class="block text-sm font-medium text-gray-300 mb-2">
-                最大轮次
+                最大步数
               </label>
               <Input
                 type="number"
@@ -603,42 +386,9 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
               rows={3}
             />
           </div>
-
-          {/* 轮次计划预览 */}
-          {roundPlans.length > 0 && (
-            <Card class="p-4 bg-dark-accent/30">
-              <div class="flex items-center justify-between mb-3">
-                <h4 class="font-semibold text-white">📋 轮次安排</h4>
-                <Button
-                  onClick={() => setIsRoundPlanOpen(true)}
-                  size="sm"
-                  variant="secondary"
-                >
-                  编辑 ({roundPlans.length}场)
-                </Button>
-              </div>
-              <div class="space-y-1">
-                {roundPlans.slice(0, 3).map((round) => (
-                  <div key={round.round} class="text-sm text-gray-400">
-                    • 第{round.round}场：{round.description}
-                    {round.goal && (
-                      <span class="text-gray-500">（{round.goal}）</span>
-                    )}{" "}
-                    ({round.turns.length}个表演)
-                  </div>
-                ))}
-                {roundPlans.length > 3 && (
-                  <div class="text-sm text-gray-500">
-                    还有{roundPlans.length - 3}场...
-                  </div>
-                )}
-              </div>
-            </Card>
-          )}
         </div>
       </Modal>
 
-      {/* AI 生成场景模态框 */}
       <AIGenerateModal
         isOpen={isAIInputOpen}
         onClose={() => {
@@ -660,37 +410,6 @@ export const SceneEditor: FunctionalComponent<SceneEditorProps> = ({
         thinkingContent={sceneThinkingContent}
         onProviderChange={handleProviderChange}
         onGenerate={handleGenerateScene}
-      />
-
-      {/* 轮次计划编辑模态框 */}
-      <RoundPlanModal
-        isOpen={isRoundPlanOpen}
-        onClose={() => {
-          setIsRoundPlanOpen(false);
-          setRoundStreamingContent("");
-          setRoundThinkingContent("");
-        }}
-        roomContext={roomContext}
-        characters={characters}
-        existingScenes={existingScenes}
-        editingSceneId={editingScene?.id}
-        sceneName={name}
-        sceneDescription={description}
-        sceneGoal={goal}
-        maxRounds={maxRounds}
-        roundPlans={roundPlans}
-        onRoundPlansChange={setRoundPlans}
-        providers={providers}
-        selectedProviderId={selectedProviderId}
-        selectedModel={selectedModel}
-        isThinkingModel={isThinkingModel}
-        enableThinking={enableThinking}
-        thinkingBudget={thinkingBudget}
-        isGenerating={isGenerating}
-        streamingContent={roundStreamingContent}
-        thinkingContent={roundThinkingContent}
-        onProviderChange={handleProviderChange}
-        onGenerate={handleGenerateRoundPlan}
       />
     </>
   );

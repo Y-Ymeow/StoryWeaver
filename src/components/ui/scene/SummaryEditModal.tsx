@@ -7,7 +7,7 @@ import { Button } from "@components/ui/common";
 
 interface SummaryEditModalProps {
   isOpen: boolean;
-  totalRounds: number;
+  totalSteps: number;
   performanceCount: number;
   generatedSummary: string;
   isProcessing: boolean;
@@ -18,7 +18,7 @@ interface SummaryEditModalProps {
 
 export const SummaryEditModal: FunctionalComponent<SummaryEditModalProps> = ({
   isOpen,
-  totalRounds,
+  totalSteps,
   performanceCount,
   generatedSummary,
   isProcessing,
@@ -40,7 +40,7 @@ export const SummaryEditModal: FunctionalComponent<SummaryEditModalProps> = ({
         <div class="p-3 md:p-4 space-y-3 md:space-y-4 overflow-y-auto max-h-[60vh]">
           <div class="bg-dark-accent/30 rounded-lg p-2 md:p-3">
             <div class="text-xs md:text-sm text-gray-400">
-              已完成 {performanceCount} 条表演记录，共 {totalRounds} 轮
+              已完成 {performanceCount} 条表演记录，目标推进 {totalSteps} 步
             </div>
           </div>
           <div>

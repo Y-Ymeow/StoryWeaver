@@ -219,6 +219,7 @@ export class AIClient {
       // 禁用思考 - 新模型必须显式发送禁用参数
       if (thinkingType === "boolean") {
       } else if (thinkingType === "object" && thinking?.disabled) {
+        body[paramKey] = { type: "disabled" };
       } else if (thinkingType === "object") {
         body[paramKey] = { type: "disabled" };
       }
