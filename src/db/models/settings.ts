@@ -1,68 +1,37 @@
 /**
- * 系统设置数据表操作
+ * 系统设置数据表操作（Dexie）
  */
 
 import { getDB, saveDBToFile } from "../core";
 
-/**
- * 获取设置值
- */
-export function getSetting(key: string): string | null {
+export async function getSetting(key: string): Promise<string | null> {
   const db = getDB();
-  const stmt = db.prepare(
-    "SELECT value FROM system_settings WHERE key = ?"
-  );
-  stmt.bind([key]);
-
-  if (stmt.step()) {
-    const row = stmt.get() as any[];
-    stmt.free();
-    return row[0] as string;
-  }
-  stmt.free();
-  return null;
+  const row = await db.system_settings.get(key);
+  return row?.value ?? null;
 }
 
-/**
- * 设置值
- */
 export async function setSetting(
   key: string,
   value: string,
 ): Promise<void> {
   const db = getDB();
-  const stmt = db.prepare(
-    "INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)"
-  );
-  stmt.run([key, value]);
-  stmt.free();
+  await db.system_settings.put({ key, value } as any);
   await saveDBToFile();
 }
 
-/**
- * 获取所有设置
- */
-export function getAllSettings(): Record<string, string> {
+export async function getAllSettings(): Promise<Record<string, string>> {
   const db = getDB();
-  const stmt = db.prepare("SELECT * FROM system_settings");
+  const rows = await db.system_settings.toArray();
+
   const results: Record<string, string> = {};
-
-  while (stmt.step()) {
-    const row = stmt.get() as any[];
-    results[row[0] as string] = row[1] as string;
+  for (const row of rows as Array<{ key: string; value: string }>) {
+    results[row.key] = row.value;
   }
-  stmt.free();
-
   return results;
 }
 
-/**
- * 删除设置
- */
 export async function deleteSetting(key: string): Promise<void> {
   const db = getDB();
-  const stmt = db.prepare("DELETE FROM system_settings WHERE key = ?");
-  stmt.run([key]);
-  stmt.free();
+  await db.system_settings.delete(key);
   await saveDBToFile();
 }

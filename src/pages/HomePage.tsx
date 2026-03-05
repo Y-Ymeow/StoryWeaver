@@ -10,13 +10,9 @@ import {
   type CreateRoomData,
 } from "@/components/ui/home/CreateRoomWizard";
 import {
-  isFileSystemAccessSupported,
-  isOPFSSupported,
-  getOPFSFileHandle,
-  getStoredFileHandle,
   clearOPFS,
 } from "@/db/file-system";
-import { isOPFSMode } from "@/db/core";
+import { isOPFSMode, isIndexedDBMode } from "@/db/core";
 
 // Hash 路由导航函数
 function navigateTo(path: string) {
@@ -48,7 +44,7 @@ export const HomePage: FunctionalComponent = () => {
   // 数据库状态
   const [showDbStatus, setShowDbStatus] = useState(false);
   const [dbConnected, setDbConnected] = useState(false);
-  const [dbType, setDbType] = useState<"file" | "opfs" | "memory" | null>(null);
+  const [dbType, setDbType] = useState<"file" | "opfs" | "indexeddb" | "memory" | null>(null);
 
   // 加载 Provider
   useEffect(() => {
@@ -67,16 +63,15 @@ export const HomePage: FunctionalComponent = () => {
   }, []);
 
   const checkDatabaseStatus = async () => {
-    const fileHandle = await getStoredFileHandle();
-    if (fileHandle) {
-      setDbConnected(true);
-      setDbType("file");
-      return;
-    }
-
     if (isOPFSMode()) {
       setDbConnected(true);
       setDbType("opfs");
+      return;
+    }
+
+    if (isIndexedDBMode()) {
+      setDbConnected(true);
+      setDbType("indexeddb");
       return;
     }
 
@@ -200,6 +195,8 @@ export const HomePage: FunctionalComponent = () => {
                   {dbConnected
                     ? dbType === "opfs"
                       ? "OPFS"
+                      : dbType === "indexeddb"
+                        ? "IndexedDB"
                       : "文件"
                     : "未连接"}
                 </span>

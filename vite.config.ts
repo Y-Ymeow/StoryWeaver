@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import preact from "@preact/preset-vite";
 import { VitePWA } from "vite-plugin-pwa";
 import tailwindcss from "@tailwindcss/vite";
@@ -6,12 +6,44 @@ import path from "path";
 
 // GitHub Pages 仓库名，本地开发时设为 '/'
 const base = process.env.GITHUB_PAGES ? "/StoryWeaver/" : "/";
+const isolationHeaders = {
+  "Cross-Origin-Opener-Policy": "same-origin",
+  "Cross-Origin-Embedder-Policy": "require-corp",
+  "Cache-Control": "no-store",
+};
+
+const crossOriginIsolationPlugin: Plugin = {
+  name: "cross-origin-isolation-headers",
+  configureServer(server) {
+    server.middlewares.use((_req, res, next) => {
+      res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+      res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+      res.setHeader("Cache-Control", "no-store");
+      next();
+    });
+  },
+  configurePreviewServer(server) {
+    server.middlewares.use((_req, res, next) => {
+      res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+      res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+      res.setHeader("Cache-Control", "no-store");
+      next();
+    });
+  },
+};
 
 export default defineConfig({
   base,
+  server: {
+    headers: isolationHeaders,
+  },
+  preview: {
+    headers: isolationHeaders,
+  },
   plugins: [
     preact(),
     tailwindcss(),
+    crossOriginIsolationPlugin,
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["favicon.ico", "apple-touch-icon.png", "masked-icon.svg"],
@@ -83,9 +115,6 @@ export default defineConfig({
     target: "esnext",
     minify: "esbuild",
     sourcemap: false,
-  },
-  optimizeDeps: {
-    include: ["sql.js"],
   },
   define: {
     global: "globalThis",

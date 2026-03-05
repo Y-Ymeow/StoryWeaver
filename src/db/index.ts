@@ -10,6 +10,7 @@ export {
   saveDBToFile,
   setFileHandle,
   isMemoryMode,
+  isIndexedDBMode,
   type Database,
   type InitDBOptions
 } from './core'

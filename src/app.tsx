@@ -1,11 +1,9 @@
 import { useState, useEffect, useCallback } from "preact/hooks";
 import { Provider as StoreProvider } from "@stores";
-import { initDB, type InitDBOptions } from "@db";
+import { initDB } from "@db";
 import { HomePage, RoomPage } from "@pages";
 import { LoadingScreen } from "@components/ui/common/LoadingScreen";
 import { ErrorBoundary } from "@components/ui/common/ErrorBoundary";
-import { DatabaseSelector } from "@components/ui/common/DatabaseSelector";
-import { getStoredFileHandle } from "./db/file-system";
 import { logError, interceptConsole } from "./lib/error-logger";
 
 // 启用 console 拦截
@@ -78,71 +76,24 @@ function HashRouter() {
 export function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showDbSelector, setShowDbSelector] = useState(false);
-  const [dbOptions, setDbOptions] = useState<InitDBOptions | null>(null);
 
   useEffect(() => {
-    checkStoredHandle();
-  }, []);
-
-  useEffect(() => {
-    if (dbOptions) {
-      initDB(dbOptions)
-        .then(() => {
+    initDB()
+      .then(() => {
+        setIsLoading(false);
+      })
+      .catch(async (err: Error) => {
+        console.error("数据库初始化失败，尝试回退到内存模式:", err);
+        try {
+          await initDB({ useMemory: true });
           setIsLoading(false);
-        })
-        .catch((err: Error) => {
-          console.error("数据库初始化失败:", err);
+        } catch (fallbackErr) {
+          console.error("内存模式初始化失败:", fallbackErr);
           setError("数据库初始化失败，请刷新页面重试");
           setIsLoading(false);
-        });
-    }
-  }, [dbOptions]);
-
-  async function checkStoredHandle() {
-    const { isFileSystemAccessSupported, getStoredFileHandle, getOPFSFileHandle } = await import('./db/file-system');
-
-    // 1. 优先检查 File System Access API（桌面端）
-    if (isFileSystemAccessSupported()) {
-      const handle = await getStoredFileHandle();
-      if (handle) {
-        setDbOptions({ fileHandle: handle, isNew: false });
-        setIsLoading(true);
-        return;
-      }
-    }
-
-    // 2. 检查 OPFS（移动端）
-    const opfsHandle = await getOPFSFileHandle();
-    if (opfsHandle) {
-      const file = await opfsHandle.getFile();
-      if (file.size > 0) {
-        (opfsHandle as any).__isOPFS = true;
-        setDbOptions({ fileHandle: opfsHandle as any, isNew: false });
-        setIsLoading(true);
-        return;
-      }
-    }
-
-    // 3. 都没有，显示选择器
-    setShowDbSelector(true);
-    setIsLoading(false);
-  }
-
-  function handleDatabaseSelected(
-    fileHandle: FileSystemFileHandle,
-    isNew: boolean,
-  ) {
-    setDbOptions({ fileHandle, isNew });
-    setShowDbSelector(false);
-    setIsLoading(true);
-  }
-
-  function handleSkipSelection() {
-    setDbOptions({ useMemory: true });
-    setShowDbSelector(false);
-    setIsLoading(true);
-  }
+        }
+      });
+  }, []);
 
   if (error) {
     return (
@@ -167,12 +118,6 @@ export function App() {
 
   return (
     <ErrorBoundary>
-      {showDbSelector && (
-        <DatabaseSelector
-          onDatabaseSelected={handleDatabaseSelected}
-          skipSelection={handleSkipSelection}
-        />
-      )}
       <StoreProvider>
         <HashRouter />
       </StoreProvider>

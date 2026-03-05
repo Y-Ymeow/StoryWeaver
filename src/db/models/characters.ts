@@ -1,13 +1,26 @@
 /**
- * 角色数据表操作
+ * 角色数据表操作（Dexie）
  */
 
 import { getDB, saveDBToFile } from "../core";
 import type { Character } from "@stores";
 
-/**
- * 创建角色
- */
+function toCharacterModel(row: any): Character {
+  return {
+    id: row.id,
+    room_id: row.room_id,
+    name: row.name,
+    background: row.background,
+    dialogue_style: row.dialogue_style,
+    memory: row.memory,
+    is_user: row.is_user === 1 || row.is_user === true,
+    type: row.type,
+    order: row.sort_order,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
 export async function createCharacter(
   character: Omit<Character, "id" | "created_at" | "updated_at">,
 ): Promise<Character> {
@@ -15,126 +28,49 @@ export async function createCharacter(
   const id = crypto.randomUUID();
   const now = Date.now();
 
-  const stmt = db.prepare(
-    `INSERT INTO characters (id, room_id, name, background, dialogue_style, memory, is_user, type, sort_order, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  );
-  stmt.run([
+  await db.characters.add({
     id,
-    character.room_id,
-    character.name,
-    character.background || "",
-    character.dialogue_style || "",
-    character.memory || null,
-    character.is_user ? 1 : 0,
-    character.type || "ai",
-    character.order || 0,
-    now,
-    now,
-  ]);
-  stmt.free();
+    room_id: character.room_id,
+    name: character.name,
+    background: character.background || "",
+    dialogue_style: character.dialogue_style || "",
+    memory: character.memory || null,
+    is_user: character.is_user ? 1 : 0,
+    type: character.type || "ai",
+    sort_order: character.order || 0,
+    created_at: now,
+    updated_at: now,
+  } as any);
 
   await saveDBToFile();
-  return getCharacterById(id);
+  return await getCharacterById(id);
 }
 
-/**
- * 获取所有角色
- */
 export async function getAllCharacters(): Promise<Character[]> {
   const db = getDB();
-  const stmt = db.prepare(
-    "SELECT * FROM characters ORDER BY room_id, sort_order"
-  );
-  const results: Character[] = [];
-
-  while (stmt.step()) {
-    const row = stmt.get() as any[];
-    results.push({
-      id: row[0] as string,
-      room_id: row[1] as string,
-      name: row[2] as string,
-      background: row[3] as string,
-      dialogue_style: row[4] as string,
-      memory: row[5] as string,
-      is_user: (row[6] as number) === 1,
-      type: row[7] as "user" | "ai",
-      order: row[8] as number,
-      created_at: row[9] as number,
-      updated_at: row[10] as number,
-    });
-  }
-  stmt.free();
-
-  return results;
+  const rows = await db.characters.toArray();
+  return rows
+    .sort((a: any, b: any) =>
+      a.room_id.localeCompare(b.room_id) || a.sort_order - b.sort_order,
+    )
+    .map(toCharacterModel);
 }
 
-/**
- * 根据房间 ID 获取角色列表
- */
 export async function getCharactersByRoomId(roomId: string): Promise<Character[]> {
   const db = getDB();
-  const stmt = db.prepare(
-    "SELECT * FROM characters WHERE room_id = ? ORDER BY sort_order"
-  );
-  stmt.bind([roomId]);
-
-  const results: Character[] = [];
-  while (stmt.step()) {
-    const row = stmt.get() as any[];
-    results.push({
-      id: row[0] as string,
-      room_id: row[1] as string,
-      name: row[2] as string,
-      background: row[3] as string,
-      dialogue_style: row[4] as string,
-      memory: row[5] as string,
-      is_user: (row[6] as number) === 1,
-      type: row[7] as "user" | "ai",
-      order: row[8] as number,
-      created_at: row[9] as number,
-      updated_at: row[10] as number,
-    });
-  }
-  stmt.free();
-
-  return results;
+  const rows = await db.characters.where("room_id").equals(roomId).toArray();
+  return rows.sort((a: any, b: any) => a.sort_order - b.sort_order).map(toCharacterModel);
 }
 
-/**
- * 根据 ID 获取角色
- */
-export function getCharacterById(id: string): Character {
+export async function getCharacterById(id: string): Promise<Character> {
   const db = getDB();
-  const stmt = db.prepare("SELECT * FROM characters WHERE id = ?");
-  stmt.bind([id]);
-
-  if (!stmt.step()) {
-    stmt.free();
+  const row = await db.characters.get(id);
+  if (!row) {
     throw new Error(`角色 ${id} 不存在`);
   }
-
-  const row = stmt.get() as any[];
-  stmt.free();
-
-  return {
-    id: row[0] as string,
-    room_id: row[1] as string,
-    name: row[2] as string,
-    background: row[3] as string,
-    dialogue_style: row[4] as string,
-    memory: row[5] as string,
-    is_user: (row[6] as number) === 1,
-    type: row[7] as "user" | "ai",
-    order: row[8] as number,
-    created_at: row[9] as number,
-    updated_at: row[10] as number,
-  };
+  return toCharacterModel(row);
 }
 
-/**
- * 更新角色
- */
 export async function updateCharacter(
   id: string,
   updates: Partial<Character>,
@@ -142,72 +78,33 @@ export async function updateCharacter(
   const db = getDB();
   const now = Date.now();
 
-  const fields: string[] = [];
-  const values: any[] = [];
+  const patch: Record<string, any> = {};
+  if (updates.name !== undefined) patch.name = updates.name;
+  if (updates.background !== undefined) patch.background = updates.background;
+  if (updates.dialogue_style !== undefined) patch.dialogue_style = updates.dialogue_style;
+  if (updates.memory !== undefined) patch.memory = updates.memory;
+  if (updates.is_user !== undefined) patch.is_user = updates.is_user ? 1 : 0;
+  if (updates.type !== undefined) patch.type = updates.type;
+  if (updates.order !== undefined) patch.sort_order = updates.order;
 
-  if (updates.name !== undefined) {
-    fields.push("name = ?");
-    values.push(updates.name);
-  }
-  if (updates.background !== undefined) {
-    fields.push("background = ?");
-    values.push(updates.background);
-  }
-  if (updates.dialogue_style !== undefined) {
-    fields.push("dialogue_style = ?");
-    values.push(updates.dialogue_style);
-  }
-  if (updates.memory !== undefined) {
-    fields.push("memory = ?");
-    values.push(updates.memory);
-  }
-  if (updates.is_user !== undefined) {
-    fields.push("is_user = ?");
-    values.push(updates.is_user ? 1 : 0);
-  }
-  if (updates.type !== undefined) {
-    fields.push("type = ?");
-    values.push(updates.type);
-  }
-  if (updates.order !== undefined) {
-    fields.push("sort_order = ?");
-    values.push(updates.order);
-  }
-
-  if (fields.length > 0) {
-    fields.push("updated_at = ?");
-    values.push(now);
-    values.push(id);
-
-    const stmt = db.prepare(
-      `UPDATE characters SET ${fields.join(", ")} WHERE id = ?`
-    );
-    stmt.run(values);
-    stmt.free();
-
+  if (Object.keys(patch).length > 0) {
+    patch.updated_at = now;
+    await db.characters.update(id, patch);
     await saveDBToFile();
   }
 
-  return getCharacterById(id);
+  return await getCharacterById(id);
 }
 
-/**
- * 更新角色记忆
- */
 export async function updateCharacterMemory(
   id: string,
   memory: string,
 ): Promise<Character> {
-  return updateCharacter(id, { memory });
+  return await updateCharacter(id, { memory });
 }
 
-/**
- * 删除角色
- */
 export async function deleteCharacter(id: string): Promise<void> {
   const db = getDB();
-  const stmt = db.prepare("DELETE FROM characters WHERE id = ?");
-  stmt.run([id]);
-  stmt.free();
+  await db.characters.delete(id);
   await saveDBToFile();
 }

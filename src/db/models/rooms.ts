@@ -1,13 +1,10 @@
 /**
- * 房间数据表操作
+ * 房间数据表操作（Dexie）
  */
 
 import { getDB, saveDBToFile } from "../core";
 import type { Room } from "@stores";
 
-/**
- * 创建房间
- */
 export async function createRoom(
   room: Omit<Room, "id" | "created_at" | "updated_at">,
 ): Promise<Room> {
@@ -15,68 +12,39 @@ export async function createRoom(
   const id = crypto.randomUUID();
   const now = Date.now();
 
-  const stmt = db.prepare(
-    `INSERT INTO rooms (id, name, setting, plot_summary, worldview, tone, current_performance_summary, max_scenes, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  );
-  stmt.run([
+  const row: Room = {
     id,
-    room.name,
-    room.setting,
-    room.plot_summary || "",
-    room.worldview || "",
-    room.tone || "",
-    room.current_performance_summary || "",
-    Math.max(1, Math.min(200, room.max_scenes || 50)),
-    now,
-    now,
-  ]);
-  stmt.free();
+    name: room.name,
+    setting: room.setting,
+    plot_summary: room.plot_summary || "",
+    worldview: room.worldview || "",
+    tone: room.tone || "",
+    current_performance_summary: room.current_performance_summary || "",
+    max_scenes: Math.max(1, Math.min(200, room.max_scenes || 50)),
+    created_at: now,
+    updated_at: now,
+  };
 
+  await db.rooms.add(row as any);
   await saveDBToFile();
-  return getRoomById(id);
+  return await getRoomById(id);
 }
 
-/**
- * 获取所有房间
- */
 export async function getAllRooms(): Promise<Room[]> {
   const db = getDB();
-  const stmt = db.prepare("SELECT * FROM rooms ORDER BY updated_at DESC");
-  const results: Room[] = [];
-
-  while (stmt.step()) {
-    const row = stmt.getAsObject() as Room;
-    results.push(row);
-  }
-
-  stmt.free();
-
-  return results;
+  const rooms = await db.rooms.toArray();
+  return rooms.sort((a: any, b: any) => b.updated_at - a.updated_at) as Room[];
 }
 
-/**
- * 根据 ID 获取房间
- */
-export function getRoomById(id: string): Room {
+export async function getRoomById(id: string): Promise<Room> {
   const db = getDB();
-  const stmt = db.prepare("SELECT * FROM rooms WHERE id = ?");
-  stmt.bind([id]);
-
-  if (!stmt.step()) {
-    stmt.free();
+  const row = await db.rooms.get(id);
+  if (!row) {
     throw new Error(`房间 ${id} 不存在`);
   }
-
-  const row = stmt.getAsObject() as Room;
-  stmt.free();
-
-  return row;
+  return row as Room;
 }
 
-/**
- * 更新房间
- */
 export async function updateRoom(
   id: string,
   updates: Partial<Room>,
@@ -84,103 +52,45 @@ export async function updateRoom(
   const db = getDB();
   const now = Date.now();
 
-  const fields: string[] = [];
-  const values: any[] = [];
-
-  if (updates.name !== undefined) {
-    fields.push("name = ?");
-    values.push(updates.name);
-  }
-  if (updates.setting !== undefined) {
-    fields.push("setting = ?");
-    values.push(updates.setting);
-  }
-  if (updates.plot_summary !== undefined) {
-    fields.push("plot_summary = ?");
-    values.push(updates.plot_summary);
-  }
-  if (updates.worldview !== undefined) {
-    fields.push("worldview = ?");
-    values.push(updates.worldview);
-  }
-  if (updates.tone !== undefined) {
-    fields.push("tone = ?");
-    values.push(updates.tone);
-  }
+  const patch: Record<string, any> = {};
+  if (updates.name !== undefined) patch.name = updates.name;
+  if (updates.setting !== undefined) patch.setting = updates.setting;
+  if (updates.plot_summary !== undefined) patch.plot_summary = updates.plot_summary;
+  if (updates.worldview !== undefined) patch.worldview = updates.worldview;
+  if (updates.tone !== undefined) patch.tone = updates.tone;
   if (updates.current_performance_summary !== undefined) {
-    fields.push("current_performance_summary = ?");
-    values.push(updates.current_performance_summary);
+    patch.current_performance_summary = updates.current_performance_summary;
   }
   if (updates.max_scenes !== undefined) {
-    fields.push("max_scenes = ?");
-    values.push(Math.max(1, Math.min(200, updates.max_scenes)));
+    patch.max_scenes = Math.max(1, Math.min(200, updates.max_scenes));
   }
 
-  if (fields.length > 0) {
-    fields.push("updated_at = ?");
-    values.push(now);
-    values.push(id);
-
-    const stmt = db.prepare(
-      `UPDATE rooms SET ${fields.join(", ")} WHERE id = ?`,
-    );
-    stmt.run(values);
-    stmt.free();
-
+  if (Object.keys(patch).length > 0) {
+    patch.updated_at = now;
+    await db.rooms.update(id, patch);
     await saveDBToFile();
   }
 
-  return getRoomById(id);
+  return await getRoomById(id);
 }
 
-/**
- * 删除房间（同时删除相关的场景、角色、演出记录）
- */
 export async function deleteRoom(id: string): Promise<void> {
   const db = getDB();
 
-  // 先删除相关的演出记录
-  const scenesStmt = db.prepare("SELECT id FROM scenes WHERE room_id = ?");
-  scenesStmt.bind([id]);
-  const sceneIds: string[] = [];
-  while (scenesStmt.step()) {
-    const row = scenesStmt.getAsObject() as any[];
-    sceneIds.push(row[0] as string);
-  }
-  scenesStmt.free();
+  const scenes = await db.scenes.where("room_id").equals(id).toArray();
+  const sceneIds = scenes.map((s: any) => s.id);
 
-  // 删除每个场景的演出记录
-  for (const sceneId of sceneIds) {
-    const deletePerfStmt = db.prepare(
-      "DELETE FROM performances WHERE scene_id = ?",
-    );
-    deletePerfStmt.run([sceneId]);
-    deletePerfStmt.free();
+  if (sceneIds.length > 0) {
+    await db.performances.where("scene_id").anyOf(sceneIds).delete();
   }
 
-  // 删除场景
-  const deleteScenesStmt = db.prepare("DELETE FROM scenes WHERE room_id = ?");
-  deleteScenesStmt.run([id]);
-  deleteScenesStmt.free();
-
-  // 删除角色
-  const deleteCharsStmt = db.prepare(
-    "DELETE FROM characters WHERE room_id = ?",
-  );
-  deleteCharsStmt.run([id]);
-  deleteCharsStmt.free();
-
-  // 删除房间
-  const stmt = db.prepare("DELETE FROM rooms WHERE id = ?");
-  stmt.run([id]);
-  stmt.free();
+  await db.scenes.where("room_id").equals(id).delete();
+  await db.characters.where("room_id").equals(id).delete();
+  await db.rooms.delete(id);
 
   await saveDBToFile();
 }
 
-/**
- * 获取房间的房间列表
- */
 export async function getRoomsByRoomId(_roomId: string): Promise<Room[]> {
   return [];
 }

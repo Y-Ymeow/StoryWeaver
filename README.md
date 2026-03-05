@@ -70,7 +70,7 @@ AI 可以自动为场景生成详细的轮次计划：
 
 ### 💾 本地数据存储
 
-- 使用 **sql.js** 在浏览器中运行 SQLite
+- 使用 **Dexie.js + IndexedDB** 进行本地持久化
 - 数据完全存储在本地，保护隐私
 - 支持导出/导入整个剧本房间
 
@@ -92,7 +92,7 @@ AI 可以自动为场景生成详细的轮次计划：
 | Preact | 轻量级 React 框架 |
 | Vite | 构建工具 |
 | TailwindCSS 4.0 | 样式框架 |
-| sql.js | 浏览器端 SQLite |
+| Dexie.js | IndexedDB 封装层 |
 | vite-plugin-pwa | PWA 支持 |
 
 ## 📦 安装与运行
@@ -100,7 +100,7 @@ AI 可以自动为场景生成详细的轮次计划：
 ### 环境要求
 
 - Node.js 18+ 或 Bun
-- 现代浏览器（支持 File System Access API 更佳）
+- 现代浏览器（支持 IndexedDB）
 
 ### 本地开发
 

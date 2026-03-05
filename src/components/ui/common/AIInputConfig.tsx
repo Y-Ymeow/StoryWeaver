@@ -111,6 +111,21 @@ export const AIInputConfig: FunctionalComponent<AIInputConfigProps> = ({
 
     try {
       const client = createClient(selectedProvider);
+      const maxScenes = roomContext?.max_scenes ?? 50;
+      const currentSceneCount = scenes.length;
+      const remainingSceneCount = Math.max(0, maxScenes - currentSceneCount);
+      const effectiveCount =
+        mode === "scene"
+          ? Math.max(0, Math.min(generationCount, remainingSceneCount))
+          : generationCount;
+
+      if (mode === "scene" && effectiveCount <= 0) {
+        setError(`场景已达到上限（${maxScenes}），无法继续生成。`);
+        setIsStreaming(false);
+        setIsGenerating(false);
+        return;
+      }
+
       const systemPrompt = getSystemPrompt(
         mode,
         roomContext,
@@ -125,7 +140,11 @@ export const AIInputConfig: FunctionalComponent<AIInputConfigProps> = ({
         { role: "system", content: systemPrompt },
         {
           role: "user",
-          content: buildAIInputPrompt(prompt, keywords, mode, generationCount),
+          content: buildAIInputPrompt(prompt, keywords, mode, effectiveCount, {
+            maxScenes,
+            currentScenes: currentSceneCount,
+            remainingScenes: remainingSceneCount,
+          }),
         },
       ];
 

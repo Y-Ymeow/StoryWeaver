@@ -1,32 +1,22 @@
 /**
- * 演出记录数据表操作
+ * 演出记录数据表操作（Dexie）
  */
 
 import { getDB, saveDBToFile } from "../core";
 import type { Performance } from "@stores";
 
-/**
- * 解析 JSON 内容
- */
 function parseContent(content: string): Record<string, string> {
   try {
     return JSON.parse(content);
   } catch {
-    // 兼容旧数据格式
     return { dialogue: content };
   }
 }
 
-/**
- * 序列化内容为 JSON
- */
 function serializeContent(content: Record<string, string>): string {
   return JSON.stringify(content);
 }
 
-/**
- * 获取主要类型
- */
 function getPrimaryType(
   content: Record<string, string>,
 ): Performance["primary_type"] {
@@ -37,9 +27,20 @@ function getPrimaryType(
   return "dialogue";
 }
 
-/**
- * 创建演出记录
- */
+function toPerformanceModel(row: any): Performance {
+  return {
+    id: row.id,
+    scene_id: row.scene_id,
+    character_id: row.character_id,
+    content: row.content,
+    primary_type: row.primary_type,
+    type: row.type,
+    round: row.round,
+    order: row.sort_order,
+    created_at: row.created_at,
+  };
+}
+
 export async function createPerformance(
   performance: Omit<Performance, "id" | "created_at" | "content"> & {
     content: Record<string, string> | string;
@@ -49,7 +50,6 @@ export async function createPerformance(
   const id = crypto.randomUUID();
   const now = Date.now();
 
-  // 处理内容
   const contentObj =
     typeof performance.content === "string"
       ? parseContent(performance.content)
@@ -57,30 +57,22 @@ export async function createPerformance(
   const contentStr = serializeContent(contentObj);
   const primaryType = performance.primary_type || getPrimaryType(contentObj);
 
-  const stmt = db.prepare(
-    `INSERT INTO performances (id, scene_id, character_id, content, primary_type, type, round, sort_order, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  );
-  stmt.run([
+  await db.performances.add({
     id,
-    performance.scene_id,
-    performance.character_id,
-    contentStr,
-    primaryType,
-    primaryType, // type 字段兼容
-    performance.round || 1,
-    performance.order || 0,
-    now,
-  ]);
-  stmt.free();
+    scene_id: performance.scene_id,
+    character_id: performance.character_id,
+    content: contentStr,
+    primary_type: primaryType,
+    type: primaryType,
+    round: performance.round || 1,
+    sort_order: performance.order || 0,
+    created_at: now,
+  } as any);
 
   await saveDBToFile();
-  return getPerformanceById(id);
+  return await getPerformanceById(id);
 }
 
-/**
- * 批量创建演出记录
- */
 export async function createPerformances(
   performances: (Omit<Performance, "id" | "created_at"> & {
     content: Record<string, string> | string;
@@ -94,178 +86,88 @@ export async function createPerformances(
   return results;
 }
 
-/**
- * 获取所有演出记录
- */
 export async function getAllPerformances(): Promise<Performance[]> {
   const db = getDB();
-  const stmt = db.prepare(
-    "SELECT * FROM performances ORDER BY created_at DESC",
-  );
-  const results: Performance[] = [];
-
-  while (stmt.step()) {
-    const row = stmt.getAsObject() as Performance;
-    results.push(row);
-  }
-  stmt.free();
-
-  return results;
+  const rows = await db.performances.toArray();
+  return rows
+    .sort((a: any, b: any) => b.created_at - a.created_at)
+    .map(toPerformanceModel);
 }
 
-/**
- * 根据场景 ID 获取演出记录
- */
 export async function getPerformancesBySceneId(
   sceneId: string,
 ): Promise<Performance[]> {
   const db = getDB();
-  const stmt = db.prepare(
-    "SELECT * FROM performances WHERE scene_id = ? ORDER BY round, sort_order, created_at",
-  );
-  stmt.bind([sceneId]);
-
-  const results: Performance[] = [];
-  while (stmt.step()) {
-    const row = stmt.getAsObject() as Performance;
-    // row.content = row.content ? JSON.parse(row.content) : row.content;
-    results.push(row);
-  }
-  stmt.free();
-
-  return results;
+  const rows = await db.performances.where("scene_id").equals(sceneId).toArray();
+  return rows
+    .sort(
+      (a: any, b: any) =>
+        a.round - b.round || a.sort_order - b.sort_order || a.created_at - b.created_at,
+    )
+    .map(toPerformanceModel);
 }
 
-/**
- * 根据轮次获取演出记录
- */
 export async function getPerformancesByRound(
   sceneId: string,
   round: number,
 ): Promise<Performance[]> {
-  const db = getDB();
-  const stmt = db.prepare(
-    "SELECT * FROM performances WHERE scene_id = ? AND round = ? ORDER BY sort_order, created_at",
-  );
-  stmt.bind([sceneId, round]);
-
-  const results: Performance[] = [];
-  while (stmt.step()) {
-    const row = stmt.getAsObject() as Performance;
-    results.push(row);
-  }
-  stmt.free();
-
-  return results;
+  const rows = await getPerformancesBySceneId(sceneId);
+  return rows.filter((row) => row.round === round);
 }
 
-/**
- * 根据 ID 获取演出记录
- */
-export function getPerformanceById(id: string): Performance {
+export async function getPerformanceById(id: string): Promise<Performance> {
   const db = getDB();
-  const stmt = db.prepare("SELECT * FROM performances WHERE id = ?");
-  stmt.bind([id]);
+  const row = await db.performances.get(id);
 
-  if (!stmt.step()) {
-    stmt.free();
+  if (!row) {
     throw new Error(`演出记录 ${id} 不存在`);
   }
 
-  const row = stmt.getAsObject() as Performance;
-  stmt.free();
-
-  return row;
+  return toPerformanceModel(row);
 }
 
-/**
- * 获取当前最大轮次
- */
-export function getMaxRound(sceneId: string): number {
-  const db = getDB();
-  const stmt = db.prepare(
-    "SELECT MAX(round) FROM performances WHERE scene_id = ?",
-  );
-  stmt.bind([sceneId]);
-
-  if (stmt.step()) {
-    const row = stmt.get() as any[];
-    stmt.free();
-    return (row[0] as number) || 0;
-  }
-  stmt.free();
-  return 0;
+export async function getMaxRound(sceneId: string): Promise<number> {
+  const rows = await getPerformancesBySceneId(sceneId);
+  if (rows.length === 0) return 0;
+  return Math.max(...rows.map((row) => row.round || 0));
 }
 
-/**
- * 删除演出记录
- */
 export async function deletePerformance(id: string): Promise<void> {
   const db = getDB();
-  const stmt = db.prepare("DELETE FROM performances WHERE id = ?");
-  stmt.run([id]);
-  stmt.free();
+  await db.performances.delete(id);
   await saveDBToFile();
 }
 
-/**
- * 删除场景的所有演出记录
- */
 export async function deletePerformancesBySceneId(
   sceneId: string,
 ): Promise<void> {
   const db = getDB();
-  const stmt = db.prepare("DELETE FROM performances WHERE scene_id = ?");
-  stmt.run([sceneId]);
-  stmt.free();
+  await db.performances.where("scene_id").equals(sceneId).delete();
   await saveDBToFile();
 }
 
-/**
- * 更新演出记录
- */
 export async function updatePerformance(
   id: string,
   updates: Partial<Performance> & { content?: Record<string, string> },
 ): Promise<Performance> {
   const db = getDB();
-  const fields: string[] = [];
-  const values: any[] = [];
+  const patch: Record<string, any> = {};
 
   if (updates.content !== undefined) {
-    fields.push("content = ?");
-    const contentObj =
+    patch.content =
       typeof updates.content === "string"
         ? updates.content
         : serializeContent(updates.content);
-    values.push(contentObj);
   }
-  if (updates.primary_type !== undefined) {
-    fields.push("primary_type = ?");
-    values.push(updates.primary_type);
-  }
-  if (updates.type !== undefined) {
-    fields.push("type = ?");
-    values.push(updates.type);
-  }
-  if (updates.round !== undefined) {
-    fields.push("round = ?");
-    values.push(updates.round);
-  }
-  if (updates.order !== undefined) {
-    fields.push("sort_order = ?");
-    values.push(updates.order);
-  }
+  if (updates.primary_type !== undefined) patch.primary_type = updates.primary_type;
+  if (updates.type !== undefined) patch.type = updates.type;
+  if (updates.round !== undefined) patch.round = updates.round;
+  if (updates.order !== undefined) patch.sort_order = updates.order;
 
-  if (fields.length > 0) {
-    values.push(id);
-    const stmt = db.prepare(
-      `UPDATE performances SET ${fields.join(", ")} WHERE id = ?`,
-    );
-    stmt.run(values);
-    stmt.free();
+  if (Object.keys(patch).length > 0) {
+    await db.performances.update(id, patch);
     await saveDBToFile();
   }
 
-  return getPerformanceById(id);
+  return await getPerformanceById(id);
 }

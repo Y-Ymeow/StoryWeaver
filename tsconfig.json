@@ -33,7 +33,7 @@
       "@providers/*": ["src/providers/*"],
       "@assets/*": ["src/assets/*"]
     },
-    "types": ["vite-plugin-pwa/client", "node"]
+    "types": ["vite/client", "vite-plugin-pwa/client", "node"]
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"]
 }

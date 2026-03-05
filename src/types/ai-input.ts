@@ -9,6 +9,7 @@ export interface RoomContext {
   setting?: string;
   plot_summary?: string;
   worldview?: string;
+  max_scenes?: number;
 }
 
 export interface CharacterContext {

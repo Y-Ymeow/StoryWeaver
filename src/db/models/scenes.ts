@@ -1,13 +1,41 @@
 /**
- * 场景数据表操作
+ * 场景数据表操作（Dexie）
  */
 
 import { getDB, saveDBToFile } from "../core";
 import type { Scene } from "@stores";
 
-/**
- * 创建场景
- */
+function encodeRoundPlan(value: any): string | null {
+  if (value === null || value === undefined) return null;
+  return typeof value === "string" ? value : JSON.stringify(value);
+}
+
+function decodeRoundPlan(value: string | null | undefined): any {
+  if (!value) return undefined;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
+function toSceneModel(row: any): Scene {
+  return {
+    id: row.id,
+    room_id: row.room_id,
+    name: row.name,
+    description: row.description,
+    goal: row.goal,
+    setup: row.setup,
+    summary: row.summary,
+    max_rounds: row.max_rounds,
+    round_plan: decodeRoundPlan(row.round_plan),
+    order: row.sort_order,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
 export async function createScene(
   scene: Omit<Scene, "id" | "created_at" | "updated_at"> & {
     round_plan?: string | null;
@@ -17,97 +45,50 @@ export async function createScene(
   const id = crypto.randomUUID();
   const now = Date.now();
 
-  const stmt = db.prepare(
-    `INSERT INTO scenes (id, room_id, name, description, goal, setup, summary, max_rounds, round_plan, sort_order, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  );
-  stmt.run([
+  await db.scenes.add({
     id,
-    scene.room_id,
-    scene.name,
-    scene.description || "",
-    scene.goal || "",
-    scene.setup || "",
-    scene.summary || "",
-    scene.max_rounds || 10,
-    scene.round_plan ? JSON.stringify(scene.round_plan) : null,
-    scene.order || 0,
-    now,
-    now,
-  ]);
-  stmt.free();
+    room_id: scene.room_id,
+    name: scene.name,
+    description: scene.description || "",
+    goal: scene.goal || "",
+    setup: scene.setup || "",
+    summary: scene.summary || "",
+    max_rounds: scene.max_rounds || 10,
+    round_plan: encodeRoundPlan(scene.round_plan),
+    sort_order: scene.order || 0,
+    created_at: now,
+    updated_at: now,
+  } as any);
 
   await saveDBToFile();
-  return getSceneById(id);
+  return await getSceneById(id);
 }
 
-/**
- * 获取所有场景
- */
 export async function getAllScenes(): Promise<Scene[]> {
   const db = getDB();
-  const stmt = db.prepare("SELECT * FROM scenes ORDER BY room_id, sort_order");
-  const results: Scene[] = [];
-
-  while (stmt.step()) {
-    const row = stmt.getAsObject() as Scene;
-    results.push({
-      ...row,
-      round_plan: row.round_plan ? JSON.parse(row.round_plan) : undefined,
-    });
-  }
-  stmt.free();
-
-  return results;
+  const rows = await db.scenes.toArray();
+  return rows
+    .sort((a: any, b: any) =>
+      a.room_id.localeCompare(b.room_id) || a.sort_order - b.sort_order,
+    )
+    .map(toSceneModel);
 }
 
-/**
- * 根据房间 ID 获取场景列表
- */
 export async function getScenesByRoomId(roomId: string): Promise<Scene[]> {
   const db = getDB();
-  const stmt = db.prepare(
-    "SELECT * FROM scenes WHERE room_id = ? ORDER BY sort_order",
-  );
-  stmt.bind([roomId]);
-
-  const results: Scene[] = [];
-  while (stmt.step()) {
-    const row = stmt.getAsObject() as Scene;
-    results.push({
-      ...row,
-      round_plan: row.round_plan ? JSON.parse(row.round_plan) : undefined,
-    });
-  }
-  stmt.free();
-
-  return results;
+  const rows = await db.scenes.where("room_id").equals(roomId).toArray();
+  return rows.sort((a: any, b: any) => a.sort_order - b.sort_order).map(toSceneModel);
 }
 
-/**
- * 根据 ID 获取场景
- */
-export function getSceneById(id: string): Scene {
+export async function getSceneById(id: string): Promise<Scene> {
   const db = getDB();
-  const stmt = db.prepare("SELECT * FROM scenes WHERE id = ?");
-  stmt.bind([id]);
-
-  if (!stmt.step()) {
-    stmt.free();
+  const row = await db.scenes.get(id);
+  if (!row) {
     throw new Error(`场景 ${id} 不存在`);
   }
-
-  const row = stmt.getAsObject() as Scene;
-  stmt.free();
-
-  row.round_plan = row.round_plan ? JSON.parse(row.round_plan) : undefined;
-
-  return row;
+  return toSceneModel(row);
 }
 
-/**
- * 更新场景
- */
 export async function updateScene(
   id: string,
   updates: Partial<Scene> & { round_plan?: any },
@@ -115,66 +96,27 @@ export async function updateScene(
   const db = getDB();
   const now = Date.now();
 
-  const fields: string[] = [];
-  const values: any[] = [];
+  const patch: Record<string, any> = {};
+  if (updates.name !== undefined) patch.name = updates.name;
+  if (updates.description !== undefined) patch.description = updates.description;
+  if (updates.goal !== undefined) patch.goal = updates.goal;
+  if (updates.setup !== undefined) patch.setup = updates.setup;
+  if (updates.summary !== undefined) patch.summary = updates.summary;
+  if (updates.max_rounds !== undefined) patch.max_rounds = updates.max_rounds;
+  if (updates.round_plan !== undefined) patch.round_plan = encodeRoundPlan(updates.round_plan);
+  if (updates.order !== undefined) patch.sort_order = updates.order;
 
-  if (updates.name !== undefined) {
-    fields.push("name = ?");
-    values.push(updates.name);
-  }
-  if (updates.description !== undefined) {
-    fields.push("description = ?");
-    values.push(updates.description);
-  }
-  if (updates.goal !== undefined) {
-    fields.push("goal = ?");
-    values.push(updates.goal);
-  }
-  if (updates.setup !== undefined) {
-    fields.push("setup = ?");
-    values.push(updates.setup);
-  }
-  if (updates.summary !== undefined) {
-    fields.push("summary = ?");
-    values.push(updates.summary);
-  }
-  if (updates.max_rounds !== undefined) {
-    fields.push("max_rounds = ?");
-    values.push(updates.max_rounds);
-  }
-  if (updates.round_plan !== undefined) {
-    fields.push("round_plan = ?");
-    values.push(updates.round_plan ? JSON.stringify(updates.round_plan) : null);
-  }
-  if (updates.order !== undefined) {
-    fields.push("sort_order = ?");
-    values.push(updates.order);
-  }
-
-  if (fields.length > 0) {
-    fields.push("updated_at = ?");
-    values.push(now);
-    values.push(id);
-
-    const stmt = db.prepare(
-      `UPDATE scenes SET ${fields.join(", ")} WHERE id = ?`,
-    );
-    stmt.run(values);
-    stmt.free();
-
+  if (Object.keys(patch).length > 0) {
+    patch.updated_at = now;
+    await db.scenes.update(id, patch);
     await saveDBToFile();
   }
 
-  return getSceneById(id);
+  return await getSceneById(id);
 }
 
-/**
- * 删除场景
- */
 export async function deleteScene(id: string): Promise<void> {
   const db = getDB();
-  const stmt = db.prepare("DELETE FROM scenes WHERE id = ?");
-  stmt.run([id]);
-  stmt.free();
+  await db.scenes.delete(id);
   await saveDBToFile();
 }

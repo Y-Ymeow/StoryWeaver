@@ -1,201 +1,127 @@
 /**
- * AI Provider 配置数据表操作
+ * AI Provider 配置数据表操作（Dexie）
  */
 
 import { getDB, saveDBToFile } from "../core";
 import type { ProviderConfig } from "@stores";
 
-/**
- * 创建 Provider 配置
- */
+function mapProviderRow(row: any): ProviderConfig {
+  return {
+    id: row.id,
+    name: row.name,
+    type: row.type,
+    api_key: row.api_key,
+    base_url: row.base_url || undefined,
+    model: row.model || undefined,
+    custom_models: row.custom_models ? JSON.parse(row.custom_models) : undefined,
+    is_active: row.is_active === 1 || row.is_active === true,
+    supports_thinking: row.supports_thinking === 1 || row.supports_thinking === true,
+    thinking_param_key: row.thinking_param_key || undefined,
+    thinking_param_type: row.thinking_param_type || undefined,
+    thinking_param_default: row.thinking_param_default
+      ? JSON.parse(row.thinking_param_default)
+      : undefined,
+  } as ProviderConfig;
+}
+
 export async function createProviderConfig(
   config: Omit<ProviderConfig, "id">,
 ): Promise<ProviderConfig> {
   const db = getDB();
   const id = crypto.randomUUID();
 
-  const stmt = db.prepare(
-    `INSERT INTO provider_configs (id, name, type, api_key, base_url, model, custom_models, is_active, supports_thinking, thinking_param_key, thinking_param_type, thinking_param_default)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  );
-  stmt.run([
+  await db.provider_configs.add({
     id,
-    config.name,
-    config.type,
-    config.api_key,
-    config.base_url || null,
-    config.model || null,
-    config.custom_models ? JSON.stringify(config.custom_models) : null,
-    config.is_active ? 1 : 0,
-    config.supports_thinking ? 1 : 0,
-    config.thinking_param_key || null,
-    config.thinking_param_type || null,
-    config.thinking_param_default ? JSON.stringify(config.thinking_param_default) : null,
-  ]);
-  stmt.free();
+    name: config.name,
+    type: config.type,
+    api_key: config.api_key,
+    base_url: config.base_url || null,
+    model: config.model || null,
+    custom_models: config.custom_models ? JSON.stringify(config.custom_models) : null,
+    is_active: config.is_active ? 1 : 0,
+    supports_thinking: config.supports_thinking ? 1 : 0,
+    thinking_param_key: config.thinking_param_key || null,
+    thinking_param_type: config.thinking_param_type || null,
+    thinking_param_default: config.thinking_param_default
+      ? JSON.stringify(config.thinking_param_default)
+      : null,
+  } as any);
 
   await saveDBToFile();
-  return getProviderConfigById(id);
+  return await getProviderConfigById(id);
 }
 
-/**
- * 获取所有 Provider 配置
- */
 export async function getAllProviderConfigs(): Promise<ProviderConfig[]> {
   const db = getDB();
-  const stmt = db.prepare("SELECT * FROM provider_configs");
-  const results: ProviderConfig[] = [];
-
-  while (stmt.step()) {
-    const row = stmt.get() as any[];
-    results.push({
-      id: row[0] as string,
-      name: row[1] as string,
-      type: row[2] as "openai" | "gemini" | "deepseek" | "zhipu" | "groq" | "cerebras" | "mistral" | "custom",
-      api_key: row[3] as string,
-      base_url: row[4] as string,
-      model: row[5] as string,
-      is_active: (row[6] as number) === 1,
-    });
-  }
-  stmt.free();
-
-  return results;
+  const rows = await db.provider_configs.toArray();
+  return rows.map(mapProviderRow);
 }
 
-/**
- * 获取激活的 Provider 配置
- */
 export async function getActiveProviderConfig(): Promise<ProviderConfig | null> {
   const db = getDB();
-  const stmt = db.prepare(
-    "SELECT * FROM provider_configs WHERE is_active = 1 LIMIT 1"
-  );
-
-  if (stmt.step()) {
-    const row = stmt.get() as any[];
-    stmt.free();
-    return {
-      id: row[0] as string,
-      name: row[1] as string,
-      type: row[2] as "openai" | "gemini" | "deepseek" | "zhipu" | "groq" | "cerebras" | "mistral" | "custom",
-      api_key: row[3] as string,
-      base_url: row[4] as string,
-      model: row[5] as string,
-      is_active: (row[6] as number) === 1,
-    };
-  }
-  stmt.free();
-  return null;
+  const row = await db.provider_configs.where("is_active").equals(1 as any).first();
+  return row ? mapProviderRow(row) : null;
 }
 
-/**
- * 根据 ID 获取 Provider 配置
- */
-export function getProviderConfigById(id: string): ProviderConfig {
+export async function getProviderConfigById(id: string): Promise<ProviderConfig> {
   const db = getDB();
-  const stmt = db.prepare("SELECT * FROM provider_configs WHERE id = ?");
-  stmt.bind([id]);
-
-  if (!stmt.step()) {
-    stmt.free();
+  const row = await db.provider_configs.get(id);
+  if (!row) {
     throw new Error(`Provider 配置 ${id} 不存在`);
   }
-
-  const row = stmt.get() as any[];
-  stmt.free();
-
-  return {
-    id: row[0] as string,
-    name: row[1] as string,
-    type: row[2] as "openai" | "gemini" | "deepseek" | "zhipu" | "groq" | "cerebras" | "mistral" | "custom",
-    api_key: row[3] as string,
-    base_url: row[4] as string,
-    model: row[5] as string,
-    is_active: (row[6] as number) === 1,
-  };
+  return mapProviderRow(row);
 }
 
-/**
- * 更新 Provider 配置
- */
 export async function updateProviderConfig(
   id: string,
   updates: Partial<ProviderConfig>,
 ): Promise<ProviderConfig> {
   const db = getDB();
 
-  const fields: string[] = [];
-  const values: any[] = [];
+  const patch: Record<string, any> = {};
+  if (updates.name !== undefined) patch.name = updates.name;
+  if (updates.type !== undefined) patch.type = updates.type;
+  if (updates.api_key !== undefined) patch.api_key = updates.api_key;
+  if (updates.base_url !== undefined) patch.base_url = updates.base_url || null;
+  if (updates.model !== undefined) patch.model = updates.model || null;
+  if (updates.custom_models !== undefined) {
+    patch.custom_models = updates.custom_models
+      ? JSON.stringify(updates.custom_models)
+      : null;
+  }
+  if (updates.is_active !== undefined) patch.is_active = updates.is_active ? 1 : 0;
+  if (updates.supports_thinking !== undefined) {
+    patch.supports_thinking = updates.supports_thinking ? 1 : 0;
+  }
+  if (updates.thinking_param_key !== undefined) {
+    patch.thinking_param_key = updates.thinking_param_key || null;
+  }
+  if (updates.thinking_param_type !== undefined) {
+    patch.thinking_param_type = updates.thinking_param_type || null;
+  }
+  if (updates.thinking_param_default !== undefined) {
+    patch.thinking_param_default = updates.thinking_param_default
+      ? JSON.stringify(updates.thinking_param_default)
+      : null;
+  }
 
-  if (updates.name !== undefined) {
-    fields.push("name = ?");
-    values.push(updates.name);
-  }
-  if (updates.type !== undefined) {
-    fields.push("type = ?");
-    values.push(updates.type);
-  }
-  if (updates.api_key !== undefined) {
-    fields.push("api_key = ?");
-    values.push(updates.api_key);
-  }
-  if (updates.base_url !== undefined) {
-    fields.push("base_url = ?");
-    values.push(updates.base_url);
-  }
-  if (updates.model !== undefined) {
-    fields.push("model = ?");
-    values.push(updates.model);
-  }
-  if (updates.is_active !== undefined) {
-    fields.push("is_active = ?");
-    values.push(updates.is_active ? 1 : 0);
-  }
-
-  if (fields.length > 0) {
-    values.push(id);
-
-    const stmt = db.prepare(
-      `UPDATE provider_configs SET ${fields.join(", ")} WHERE id = ?`
-    );
-    stmt.run(values);
-    stmt.free();
-
+  if (Object.keys(patch).length > 0) {
+    await db.provider_configs.update(id, patch);
     await saveDBToFile();
   }
 
-  return getProviderConfigById(id);
+  return await getProviderConfigById(id);
 }
 
-/**
- * 设置激活的 Provider
- */
 export async function setActiveProvider(id: string): Promise<void> {
   const db = getDB();
-
-  // 先取消所有激活状态
-  const stmt1 = db.prepare("UPDATE provider_configs SET is_active = 0");
-  stmt1.run([]);
-  stmt1.free();
-
-  // 激活指定的 Provider
-  const stmt2 = db.prepare(
-    "UPDATE provider_configs SET is_active = 1 WHERE id = ?"
-  );
-  stmt2.run([id]);
-  stmt2.free();
-
+  await db.provider_configs.toCollection().modify({ is_active: 0 } as any);
+  await db.provider_configs.update(id, { is_active: 1 } as any);
   await saveDBToFile();
 }
 
-/**
- * 删除 Provider 配置
- */
 export async function deleteProviderConfig(id: string): Promise<void> {
   const db = getDB();
-  const stmt = db.prepare("DELETE FROM provider_configs WHERE id = ?");
-  stmt.run([id]);
-  stmt.free();
+  await db.provider_configs.delete(id);
   await saveDBToFile();
 }

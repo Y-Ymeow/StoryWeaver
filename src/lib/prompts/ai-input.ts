@@ -9,6 +9,7 @@ export interface RoomContext {
   setting?: string;
   plot_summary?: string;
   worldview?: string;
+  max_scenes?: number;
 }
 
 export interface CharacterContext {
@@ -31,10 +32,20 @@ export function buildAIInputPrompt(
   keywords: string,
   mode: AIInputMode = "custom",
   count?: number,
+  sceneLimits?: {
+    maxScenes: number;
+    currentScenes: number;
+    remainingScenes: number;
+  },
 ): string {
   let result = prompt;
   if ((mode === "character" || mode === "scene") && count && count > 0) {
     result = `请生成 ${count} 个${mode === "character" ? "角色" : "场景"}。\n${result}`;
+  }
+  if (mode === "scene" && sceneLimits) {
+    result = `场景总上限：${sceneLimits.maxScenes}；当前已存在：${sceneLimits.currentScenes}；本次最多可新增：${sceneLimits.remainingScenes}。\n` +
+      `严禁超过剩余上限，返回的 scenes 数组长度必须 <= ${sceneLimits.remainingScenes}。\n` +
+      result;
   }
   if (keywords) result += `\n\n关键词：${keywords}`;
   return result;
@@ -84,6 +95,10 @@ ${scenes
 `
       : "";
 
+  const maxScenes = roomContext?.max_scenes ?? 50;
+  const currentSceneCount = scenes?.length ?? 0;
+  const remainingSceneCount = Math.max(0, maxScenes - currentSceneCount);
+
   switch (mode) {
     case "room":
       return `你是一个专业的互动剧本创作助手。请根据用户描述生成一个完整的剧本房间设定。
@@ -118,6 +133,13 @@ ${contextInfo}${charactersInfo}
     case "scene":
       return `你是一个专业的互动剧本场景设计师。请根据用户描述和故事背景生成多个剧本场景，数量以用户要求为准。
 ${contextInfo}${scenesInfo}
+【场景数量硬约束】
+- 场景总上限：${maxScenes}
+- 当前已存在场景数：${currentSceneCount}
+- 本次最多可新增：${remainingSceneCount}
+- 你返回的 scenes 数量必须 <= ${remainingSceneCount}
+- 新场景必须避免与“已创建的场景”重复（名称、核心冲突、目标都不能重复）
+
 请返回严格的 JSON 格式：
 {
   "scenes": [

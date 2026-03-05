@@ -9,11 +9,8 @@ import {
   selectDatabaseFile, 
   createDatabaseFile, 
   clearStoredFileHandle,
-  loadFromOPFS,
-  saveToOPFS,
   clearOPFS,
   getOPFSFileHandle,
-  readOPFSFileData,
 } from '@/db/file-system'
 import type { DatabaseSelectorProps } from '@/types/common'
 
@@ -89,24 +86,13 @@ export const DatabaseSelector: FunctionalComponent<DatabaseSelectorProps> = ({
       if (opfsHandle) {
         const file = await opfsHandle.getFile();
         const isNew = file.size === 0;
-        
+
         // 标记为 OPFS 句柄
         (opfsHandle as any).__isOPFS = true;
-        
-        // 如果是新数据库，先初始化（写入空数据库）
-        if (isNew) {
-          const initSqlJs = (await import('sql.js')).default;
-          const wasmPath = new URL('sql.js/dist/sql-wasm.wasm', import.meta.url).href;
-          const SQL = await initSqlJs({ locateFile: () => wasmPath });
-          const db = new SQL.Database();
-          const data = db.export();
-          await saveToOPFS(data);
-          db.close();
-          onDatabaseSelected(opfsHandle, true)
-        } else {
-          onDatabaseSelected(opfsHandle, false)
-        }
-        
+
+        // sqlite3 OPFS 打开后会自动创建数据库文件，无需预写入空库
+        onDatabaseSelected(opfsHandle, isNew)
+
         setIsModalOpen(false)
       } else {
         setError('无法获取 OPFS 文件句柄')
