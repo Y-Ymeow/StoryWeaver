@@ -54,25 +54,20 @@ export function useAIChatStream() {
 
         let fullContent = "";
         let thinkingContent = "";
-        let inThinking = false;
 
         for await (const chunk of stream) {
           // 检查是否被取消
           if (abortControllerRef.current?.signal.aborted) {
             break;
           }
-          // 检测思考标签
+
+          // 处理思考内容
           if (chunk.thinking !== null) {
-            inThinking = true;
-          }
-
-          if (chunk.thinking === null) {
-            inThinking = false;
-          }
-
-          if (inThinking) {
             thinkingContent += chunk.thinking;
-          } else {
+          }
+
+          // 处理正常内容
+          if (chunk.content !== null) {
             fullContent += chunk.content;
           }
 

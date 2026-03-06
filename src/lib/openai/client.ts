@@ -245,7 +245,6 @@ export class AIClient {
     const decoder = new TextDecoder();
     let buffer = "";
     let hasThinking = false;
-    let hasThinkingEnd = thinking?.enabled;
     let thinkingEnd = true;
 
     while (true) {
@@ -267,28 +266,33 @@ export class AIClient {
             const reasoningContent =
               delta.reasoning_content || delta.reasoning || delta.reasoningText;
 
-            if (!reasoningContent && hasThinking) {
-              if (delta.content.includes("<think>")) {
+            const contentStr = delta.content ?? "";
+
+            if (!reasoningContent && hasThinking && contentStr) {
+              if (contentStr.includes("<think>")) {
                 hasThinking = true;
                 thinkingEnd = false;
               }
 
-              if (delta.content.includes("</think>")) {
+              if (contentStr.includes("</think>")) {
                 hasThinking = false;
                 thinkingEnd = true;
               }
 
               if (hasThinking && !thinkingEnd) {
-                delta.reasoning_content = delta.content;
+                delta.reasoning_content = contentStr;
               }
             }
 
             if (reasoningContent) {
               yield { content: null, thinking: String(reasoningContent) };
             }
-            const content = delta.content;
-            if (content) yield { content: content, thinking: null };
-          } catch {}
+            if (contentStr) {
+              yield { content: contentStr, thinking: null };
+            }
+          } catch (e) {
+            // JSON 解析错误，跳过此 chunk
+          }
         }
       }
     }

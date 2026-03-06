@@ -2,6 +2,9 @@
  * Lib 库统一导出
  */
 
+// JSON 解析工具
+export { safeParseJSON, findBalancedJsonEnd } from './json-parser'
+
 // 指令
 export * from './directive'
 

@@ -110,24 +110,19 @@ export const AIActor: FunctionalComponent<AIActorProps> = ({
       });
 
       let fullContent = "";
-      let inThinking = false;
 
       for await (const chunk of stream) {
+        // 处理思考内容
         if (chunk.thinking !== null) {
-          inThinking = true;
-        }
-        if (chunk.thinking === null) {
-          inThinking = false;
-        }
-
-        if (inThinking) {
           setThinkingContent((prev) => prev + chunk.thinking);
           onProgress({
             streaming: fullContent,
             thinking: thinkingContent + chunk.thinking,
             done: false,
           });
-        } else {
+        }
+        // 处理正常内容
+        if (chunk.content !== null) {
           fullContent += chunk.content;
           setStreamingContent(fullContent);
           onProgress({

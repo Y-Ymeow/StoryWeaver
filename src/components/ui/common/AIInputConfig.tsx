@@ -176,19 +176,14 @@ export const AIInputConfig: FunctionalComponent<AIInputConfigProps> = ({
       });
 
       let fullContent = "";
-      let inThinking = false;
 
       for await (const chunk of stream) {
+        // 处理思考内容
         if (chunk.thinking !== null) {
-          inThinking = true;
+          setThinkingContent((prev) => prev + chunk.thinking);
         }
-        if (chunk.thinking === null) {
-          inThinking = false;
-        }
-
-        if (inThinking) {
-          setThinkingContent((prev) => prev + chunk.content);
-        } else {
+        // 处理正常内容
+        if (chunk.content !== null) {
           fullContent += chunk.content;
           setStreamingContent(fullContent);
         }
